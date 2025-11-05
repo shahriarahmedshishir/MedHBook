@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useContext, useState } from "react";
 import { Upload, FileText, CalendarCheck, Trash2 } from "lucide-react";
+import AuthContext from "../Components/Context/AuthContext";
 
 const PatientHome = () => {
+  const { user, isAdmin, signOutUser } = useContext(AuthContext);
   const [prescriptions, setPrescriptions] = useState([]);
   const [testReports, setTestReports] = useState([]);
 
@@ -44,7 +46,8 @@ const PatientHome = () => {
           Patient Dashboard
         </h1>
         <p className="text-gray-600 mb-10 text-center md:text-left">
-          Upload your prescriptions and test reports below. You can upload multiple files and manage them easily.
+          Upload your prescriptions and test reports below. You can upload
+          multiple files and manage them easily.
         </p>
 
         {/* Form Section */}
@@ -56,7 +59,9 @@ const PatientHome = () => {
             {/* Prescription Upload */}
             <div className="flex flex-col items-center bg-[#f0fdfa] rounded-xl p-4">
               <FileText className="w-12 h-12 text-teal-500 mb-2" />
-              <h2 className="text-lg font-semibold mb-2">Upload Prescription</h2>
+              <h2 className="text-lg font-semibold mb-2">
+                Upload Prescription
+              </h2>
               <input
                 type="file"
                 multiple
@@ -70,7 +75,9 @@ const PatientHome = () => {
                     key={idx}
                     className="flex justify-between items-center bg-white p-2 rounded-md shadow-sm"
                   >
-                    <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                    <span className="text-sm text-gray-700 truncate">
+                      {file.name}
+                    </span>
                     <button
                       type="button"
                       onClick={() => handleRemoveFile("prescription", idx)}
@@ -100,7 +107,9 @@ const PatientHome = () => {
                     key={idx}
                     className="flex justify-between items-center bg-white p-2 rounded-md shadow-sm"
                   >
-                    <span className="text-sm text-gray-700 truncate">{file.name}</span>
+                    <span className="text-sm text-gray-700 truncate">
+                      {file.name}
+                    </span>
                     <button
                       type="button"
                       onClick={() => handleRemoveFile("testReport", idx)}

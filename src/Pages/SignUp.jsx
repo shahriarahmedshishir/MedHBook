@@ -1,9 +1,13 @@
-import { useState } from "react";
+import React, { useContext, useState } from "react";
 import { User, Mail, Lock, Phone, Upload, Eye, EyeOff } from "lucide-react";
 import Logo from "../Components/Shared/Logo";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router-dom";
+import AuthContext from "../Components/Context/AuthContext";
 
 const SignUp = () => {
+  const { createUser } = useContext(AuthContext);
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     name: "",
     mobile: "",
@@ -14,6 +18,9 @@ const SignUp = () => {
 
   const [preview, setPreview] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -22,21 +29,65 @@ const SignUp = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      setFormData((prev) => ({ ...prev, image: file }));
-      setPreview(URL.createObjectURL(file));
-    }
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result;
+      setFormData((prev) => ({ ...prev, image: base64 }));
+      setPreview(base64);
+    };
+    reader.readAsDataURL(file);
   };
 
-  const handleSubmit = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    console.log("Form Submitted:", formData);
+    const { name, mobile, email, password, image } = formData;
+    setError(null);
+    setSuccess(false);
+    setLoading(true);
+
+    try {
+      // 1️⃣ Firebase Auth Create
+      const result = await createUser(email, password);
+      const firebaseUser = result.user;
+
+      // 2️⃣ Prepare MongoDB data
+      const userData = {
+        uid: firebaseUser.uid,
+        name,
+        email,
+        mobileNo: mobile,
+        img: image,
+        role: "user",
+      };
+
+      // 3️⃣ Send to backend
+      const res = await fetch("http://localhost:3000/userdata", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(userData),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Backend error: ${errText}`);
+      }
+
+      const data = await res.json();
+      console.log("✅ Saved to MongoDB:", data);
+
+      setSuccess(true);
+      setTimeout(() => navigate("/signin"), 2000);
+    } catch (err) {
+      console.error("❌ Registration failed:", err.message);
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#e0f7fa] to-[#b2ebf2] p-4">
-      
-      {/* Logo */}
       <div className="mb-6">
         <Logo className="w-32 h-auto" />
       </div>
@@ -68,14 +119,15 @@ const SignUp = () => {
               accept="image/*"
               onChange={handleImageChange}
               className="hidden"
+              disabled={loading}
             />
           </label>
           <p className="text-xs text-gray-500 mt-2">Upload Profile Image</p>
         </div>
 
-        {/* Form Fields */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="flex items-center bg-white border border-teal-300 rounded-md p-2 focus-within:border-teal-500">
+        {/* Form */}
+        <form onSubmit={handleRegister} className="space-y-4">
+          <div className="flex items-center border border-teal-300 rounded-md p-2">
             <User className="text-teal-400 w-5 h-5 mr-2" />
             <input
               type="text"
@@ -88,7 +140,7 @@ const SignUp = () => {
             />
           </div>
 
-          <div className="flex items-center bg-white border border-teal-300 rounded-md p-2 focus-within:border-teal-500">
+          <div className="flex items-center border border-teal-300 rounded-md p-2">
             <Phone className="text-teal-400 w-5 h-5 mr-2" />
             <input
               type="tel"
@@ -101,7 +153,7 @@ const SignUp = () => {
             />
           </div>
 
-          <div className="flex items-center bg-white border border-teal-300 rounded-md p-2 focus-within:border-teal-500">
+          <div className="flex items-center border border-teal-300 rounded-md p-2">
             <Mail className="text-teal-400 w-5 h-5 mr-2" />
             <input
               type="email"
@@ -114,8 +166,7 @@ const SignUp = () => {
             />
           </div>
 
-          {/* Password with toggle */}
-          <div className="flex items-center bg-white border border-teal-300 rounded-md p-2 focus-within:border-teal-500 relative">
+          <div className="flex items-center border border-teal-300 rounded-md p-2 relative">
             <Lock className="text-teal-400 w-5 h-5 mr-2" />
             <input
               type={showPassword ? "text" : "password"}
@@ -123,7 +174,7 @@ const SignUp = () => {
               placeholder="Password"
               value={formData.password}
               onChange={handleChange}
-              className="w-full bg-transparent outline-none text-gray-800 text-sm pr-10"
+              className="w-full bg-transparent outline-none text-gray-800 text-sm pr-8"
               required
             />
             <button
@@ -131,23 +182,33 @@ const SignUp = () => {
               className="absolute right-2 text-gray-500 hover:text-gray-700"
               onClick={() => setShowPassword(!showPassword)}
             >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
             </button>
           </div>
 
           <button
             type="submit"
             className="w-full bg-teal-400 text-white font-medium py-2.5 rounded-md hover:bg-teal-500 transition"
+            disabled={loading}
           >
-            Sign Up
+            {loading ? "Processing..." : "Sign Up"}
           </button>
+
+          {error && (
+            <p className="text-red-500 text-center text-sm mt-2">{error}</p>
+          )}
+          {success && (
+            <p className="text-green-500 text-center text-sm mt-2">
+              Registration successful! Redirecting...
+            </p>
+          )}
         </form>
-        {/* Create Account Link */}
+
         <div className="mt-4 text-center text-sm text-gray-700">
           Already have an account?{" "}
           <Link
             to="/signin"
-            className="text-teal-500 font-medium hover:text-teal-600 transition"
+            className="text-teal-500 font-medium hover:text-teal-600"
           >
             Sign In
           </Link>

@@ -1,16 +1,18 @@
 const express = require("express");
 const cors = require("cors");
+const dotenv = require("dotenv");
+const { MongoClient, ServerApiVersion } = require("mongodb");
+
+dotenv.config();
+
 const app = express();
 const port = process.env.PORT || 3000;
-require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
 
 app.use(cors());
 app.use(express.json());
 
-const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.1atxbvs.mongodb.net/?appName=Cluster0`;
+const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.1atxbvs.mongodb.net/?retryWrites=true&w=majority`;
 
-// Create a MongoClient with a MongoClientOptions object to set the Stable API version
 const client = new MongoClient(uri, {
   serverApi: {
     version: ServerApiVersion.v1,
@@ -19,25 +21,51 @@ const client = new MongoClient(uri, {
   },
 });
 
-async function run() {
+let userCollection;
+
+async function connectDB() {
   try {
-    // Connect the client to the server	(optional starting in v4.7)
     await client.connect();
-    // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
-  } finally {
-    // Ensures that the client will close when you finish/error
-    // await client.close();
+    const db = client.db("MedHBook");
+    userCollection = db.collection("userdata");
+    await db.command({ ping: 1 });
+    console.log("✅ Connected to MongoDB!");
+  } catch (err) {
+    console.error("❌ MongoDB connection failed:", err.message);
   }
 }
-run().catch(console.dir);
+
+app.post("/userdata", async (req, res) => {
+  try {
+    if (!userCollection) {
+      return res
+        .status(503)
+        .json({ success: false, message: "DB not connected yet." });
+    }
+
+    console.log("📩 Incoming data:", req.body);
+    const user = req.body;
+    const result = await userCollection.insertOne(user);
+
+    return res.status(201).json({
+      success: true,
+      message: "User saved successfully!",
+      insertedId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Error inserting user:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 app.get("/", (req, res) => {
-  res.send("server is running");
+  res.send("🚀 Server is running...");
 });
-app.listen(port, () => {
-  console.log(`on port ${port}`);
+
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(500).json({ message: "Internal Server Error" });
 });
+
+connectDB();
+app.listen(port, () => console.log(`Server running on port ${port}`));

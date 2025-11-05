@@ -4,13 +4,20 @@ import {
   onAuthStateChanged,
   signInWithEmailAndPassword,
   signOut,
+  createUserWithEmailAndPassword,
 } from "firebase/auth";
-import auth from "../firebase/firebase.init";
+import auth from "../Firebase/firebase.init";
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Function to create a new user (Sign Up)
+  const createUser = (email, password) => {
+    setLoading(true);
+    return createUserWithEmailAndPassword(auth, email, password);
+  };
 
   const signInUser = (email, password) => {
     setLoading(true);
@@ -28,6 +35,7 @@ const AuthProvider = ({ children }) => {
       setUser(currentUser);
       if (currentUser) {
         try {
+          // This assumes you are using Custom Claims to check for admin status
           const idTokenResult = await currentUser.getIdTokenResult();
           const userIsAdmin = !!idTokenResult.claims.admin;
           setIsAdmin(userIsAdmin);
@@ -49,6 +57,7 @@ const AuthProvider = ({ children }) => {
     user,
     isAdmin,
     loading,
+    createUser,
     signInUser,
     signOutUser,
   };
