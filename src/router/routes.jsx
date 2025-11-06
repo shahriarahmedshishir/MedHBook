@@ -4,6 +4,8 @@ import SignUp from "../Pages/SignUp";
 import SignIn from "../Pages/SignIn";
 import PatientHome from "../Pages/PatientHome";
 import DoctorHome from "../Pages/DoctorHome";
+import AllPatients from "../Pages/AllPatients";
+import ViewReport from "../Pages/ViewReport";
 const routes = createBrowserRouter([
   {
     path: "/",
@@ -16,6 +18,14 @@ const routes = createBrowserRouter([
         {
             path:"/",
             element: <DoctorHome/>
+        },
+        {
+          path:"/all-patients",
+          element:<AllPatients/>
+        },
+        {
+          path:"/report",
+          element: <ViewReport/>
         }
     ]
   },

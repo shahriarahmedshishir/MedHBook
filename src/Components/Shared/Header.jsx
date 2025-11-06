@@ -39,13 +39,13 @@ const Header = () => {
     <header className=" w-full bg-[#d1f6ff] shadow-md z-50">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 h-14 md:h-16">
         {/* Logo */}
-        <Link to="/" className="flex-shrink-0">
+        <Link to="/" className="shrink-0">
           <Logo />
         </Link>
 
         {/* Desktop / Tablet Profile Section */}
         <div
-          className="hidden md:flex items-center space-x-3 relative"
+          className=" flex items-center space-x-3 relative"
           ref={dropdownRef}
         >
           <p className="text-sm font-medium text-gray-800 select-none">
@@ -94,18 +94,18 @@ const Header = () => {
         </div>
 
         {/* Mobile Menu Button */}
-        <button
+        {/* <button
           type="button"
           className="md:hidden text-gray-700"
           onClick={() => setMenuOpen(true)}
           aria-label="Open menu"
         >
           <Menu className="w-6 h-6" />
-        </button>
+        </button> */}
       </div>
 
       {/* Mobile Menu Overlay */}
-      <div
+      {/* <div
         className={`fixed inset-0 z-40 bg-[#d1f6ff]/95 backdrop-blur-sm flex flex-col items-center justify-center space-y-6 text-gray-800 text-center transition-all duration-200 ${
           menuOpen ? "opacity-100 visible" : "opacity-0 invisible"
         }`}
@@ -136,7 +136,7 @@ const Header = () => {
         >
           Sign Out
         </button>
-      </div>
+      </div> */}
     </header>
   );
 };
