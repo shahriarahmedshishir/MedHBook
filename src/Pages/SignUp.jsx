@@ -1,3 +1,4 @@
+// SignUp.jsx
 import React, { useContext, useState } from "react";
 import { User, Mail, Lock, Phone, Upload, Eye, EyeOff } from "lucide-react";
 import Logo from "../Components/Shared/Logo";
@@ -13,7 +14,7 @@ const SignUp = () => {
     mobile: "",
     email: "",
     password: "",
-    image: null,
+    image: null, // Will hold the File object, not the Base64 string
   });
 
   const [preview, setPreview] = useState(null);
@@ -22,58 +23,75 @@ const SignUp = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Handle text inputs
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Handle image upload & preview
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // --- Check file type if desired ---
+    // const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    // if (!validTypes.includes(file.type)) {
+    //   setError("Please select a valid image file (jpg, png, gif).");
+    //   return;
+    // } else {
+    //   setError(null); // Clear error if valid
+    // }
+    // --- End File Type Check ---
+
     const reader = new FileReader();
     reader.onloadend = () => {
-      const base64 = reader.result;
-      setFormData((prev) => ({ ...prev, image: base64 }));
-      setPreview(base64);
+      setPreview(reader.result); // Set preview using Base64 result
     };
     reader.readAsDataURL(file);
+
+    // Store the actual File object in formData
+    setFormData((prev) => ({ ...prev, image: file }));
   };
 
+  // Handle registration
   const handleRegister = async (e) => {
     e.preventDefault();
-    const { name, mobile, email, password, image } = formData;
+    const { name, mobile, email, password } = formData; // Extract image separately
+    const imageFile = formData.image; // The File object
+
     setError(null);
     setSuccess(false);
     setLoading(true);
 
     try {
-      // 1️⃣ Firebase Auth Create
-      const result = await createUser(email, password);
-      const firebaseUser = result.user;
+      // ✅ 1. Create user in Firebase Authentication
+      await createUser(email, password);
 
-      // 2️⃣ Prepare MongoDB data
-      const userData = {
-        uid: firebaseUser.uid,
-        name,
-        email,
-        mobileNo: mobile,
-        img: image,
-        role: "user",
-      };
-
-      // 3️⃣ Send to backend
-      const res = await fetch("http://localhost:3000/userdata", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userData),
-      });
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Backend error: ${errText}`);
+      // ✅ 2. Prepare form data for upload using FormData
+      // This is necessary to send files correctly
+      const userDataToSend = new FormData();
+      userDataToSend.append("name", name);
+      userDataToSend.append("email", email);
+      userDataToSend.append("mobileNo", mobile);
+      userDataToSend.append("role", "user");
+      // Append the image file if one was selected
+      if (imageFile) {
+        userDataToSend.append("img", imageFile); // Send the File object
       }
 
+      // ✅ 3. Send user data (including file) to backend
+      const res = await fetch("http://localhost:3000/userdata", {
+        method: "POST",
+        // Note: Do NOT set Content-Type header when using FormData
+        // The browser sets it automatically with the correct boundary
+        body: userDataToSend, // Send FormData object
+      });
+
       const data = await res.json();
+
+      if (!data.success) throw new Error(data.message || "Failed to save user");
+
       console.log("✅ Saved to MongoDB:", data);
 
       setSuccess(true);
@@ -88,6 +106,7 @@ const SignUp = () => {
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#e0f7fa] to-[#b2ebf2] p-4">
+      {/* Logo */}
       <div className="mb-6">
         <Logo className="w-32 h-auto" />
       </div>
@@ -110,7 +129,7 @@ const SignUp = () => {
                 className="w-28 h-28 rounded-full object-cover"
               />
             ) : (
-              <Upload className="text-teal-500" size={28} />
+              <Upload className="text-teal-400 w-5 h-5 mr-2" />
             )}
             <input
               type="file"
@@ -127,6 +146,7 @@ const SignUp = () => {
 
         {/* Form */}
         <form onSubmit={handleRegister} className="space-y-4">
+          {/* Name */}
           <div className="flex items-center border border-teal-300 rounded-md p-2">
             <User className="text-teal-400 w-5 h-5 mr-2" />
             <input
@@ -140,6 +160,7 @@ const SignUp = () => {
             />
           </div>
 
+          {/* Mobile */}
           <div className="flex items-center border border-teal-300 rounded-md p-2">
             <Phone className="text-teal-400 w-5 h-5 mr-2" />
             <input
@@ -153,6 +174,7 @@ const SignUp = () => {
             />
           </div>
 
+          {/* Email */}
           <div className="flex items-center border border-teal-300 rounded-md p-2">
             <Mail className="text-teal-400 w-5 h-5 mr-2" />
             <input
@@ -166,6 +188,7 @@ const SignUp = () => {
             />
           </div>
 
+          {/* Password */}
           <div className="flex items-center border border-teal-300 rounded-md p-2 relative">
             <Lock className="text-teal-400 w-5 h-5 mr-2" />
             <input
@@ -186,6 +209,7 @@ const SignUp = () => {
             </button>
           </div>
 
+          {/* Submit Button */}
           <button
             type="submit"
             className="w-full bg-teal-400 text-white font-medium py-2.5 rounded-md hover:bg-teal-500 transition"
@@ -194,6 +218,7 @@ const SignUp = () => {
             {loading ? "Processing..." : "Sign Up"}
           </button>
 
+          {/* Feedback Messages */}
           {error && (
             <p className="text-red-500 text-center text-sm mt-2">{error}</p>
           )}
@@ -204,6 +229,7 @@ const SignUp = () => {
           )}
         </form>
 
+        {/* Redirect Link */}
         <div className="mt-4 text-center text-sm text-gray-700">
           Already have an account?{" "}
           <Link

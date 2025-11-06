@@ -1,17 +1,35 @@
-import React from 'react';
-import Header from '../Shared/Header';
-import Footer from '../Shared/Footer';
-import PatientHome from '../../Pages/PatientHome';
-import { Outlet } from 'react-router';
+// RootLayout.jsx
+import React, { useContext } from "react";
+import { Outlet } from "react-router-dom";
+import Header from "../Shared/Header";
+import Footer from "../Shared/Footer";
+import SignIn from "../../Pages/SignIn";
+import AuthContext from "../Context/AuthContext";
 
 const RootLayout = () => {
+  const { user, loading } = useContext(AuthContext);
+
+  // Show loading while auth or users data is not ready
+  if (loading || !user) {
     return (
-        <div className=''>
-            <Header/>
-            <Outlet/>
-            <Footer/>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Loading...</p>
+      </div>
     );
+  }
+
+  // Redirect to SignIn if not logged in
+  if (!user) {
+    return <SignIn />;
+  }
+
+  return (
+    <div className="">
+      <Header />
+      <Outlet />
+      <Footer />
+    </div>
+  );
 };
 
 export default RootLayout;

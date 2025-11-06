@@ -1,11 +1,16 @@
-import React, { useState, useContext } from "react";
+import React, { useState, useContext, useEffect } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../Components/Shared/Logo";
 import AuthContext from "../Components/Context/AuthContext";
 
 const SignIn = () => {
-  const { signInUser } = useContext(AuthContext);
+  const {
+    signInUser,
+    isAdmin,
+    user,
+    loading: authLoading,
+  } = useContext(AuthContext); // Renamed to avoid conflict
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -15,25 +20,26 @@ const SignIn = () => {
 
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(false);
+  const [localLoading, setLocalLoading] = useState(false); // Use a local loading state for the sign-in process
 
+  // Handle input change
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Handle sign in
   const handleSignIn = async (e) => {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setLocalLoading(true); // Use local loading state for the sign-in action
 
     try {
       await signInUser(formData.email, formData.password);
-      navigate("/");
+      // Navigation will be handled by the useEffect below once the context updates
     } catch (error) {
       console.error("Sign-in failed:", error);
 
-      // Firebase provides different error codes, so let’s map them:
       let message = "Something went wrong. Please try again.";
       if (
         error.code === "auth/user-not-found" ||
@@ -48,10 +54,37 @@ const SignIn = () => {
 
       setError(message);
     } finally {
-      setLoading(false);
+      setLocalLoading(false); // Stop local loading state
     }
   };
 
+  // Effect to redirect *only* after auth state is loaded and user exists
+  useEffect(() => {
+    // authLoading (from context) is the flag indicating Firebase has finished checking auth state
+    if (!authLoading) {
+      // Note: The context 'loading' is false when auth state is ready
+      if (user) {
+        // If user is now confirmed to be logged in
+        if (isAdmin) {
+          navigate("/doctor", { replace: true }); // Use replace to prevent back button issues
+        } else {
+          navigate("/patient", { replace: true });
+        }
+      }
+      // If authLoading is false and user is null, show the login form (do nothing here)
+    }
+  }, [user, isAdmin, navigate, authLoading]); // Add authLoading as a dependency
+
+  // Show a loading state while waiting for Firebase to initialize auth (context loading)
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-[#e0f7fa] to-[#b2ebf2] p-4">
+        <div className="text-lg text-gray-600">Loading...</div>
+      </div>
+    );
+  }
+
+  // Render the login form only if auth is loaded and user is not logged in
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#e0f7fa] to-[#b2ebf2] p-4">
       {/* Logo */}
@@ -76,7 +109,7 @@ const SignIn = () => {
               onChange={handleChange}
               className="w-full bg-transparent outline-none text-gray-800 text-sm"
               required
-              disabled={loading}
+              disabled={localLoading} // Use local loading state
             />
           </div>
 
@@ -91,12 +124,13 @@ const SignIn = () => {
               onChange={handleChange}
               className="w-full bg-transparent outline-none text-gray-800 text-sm pr-10"
               required
-              disabled={loading}
+              disabled={localLoading} // Use local loading state
             />
             <button
               type="button"
               className="absolute right-2 text-gray-500 hover:text-gray-700"
               onClick={() => setShowPassword(!showPassword)}
+              disabled={localLoading} // Use local loading state
             >
               {showPassword ? (
                 <EyeOff className="w-5 h-5" />
@@ -108,21 +142,22 @@ const SignIn = () => {
 
           {/* Forgot Password */}
           <div className="text-right">
-            <a
-              href="#"
+            <Link
+              to="/forgot-password" // Change href="#" to a real route
               className="text-sm text-teal-500 hover:text-teal-600 transition"
             >
               Forgot password?
-            </a>
+            </Link>
           </div>
 
           {/* Sign In Button */}
           <button
             type="submit"
             className="w-full bg-teal-400 text-white font-medium py-2.5 rounded-md hover:bg-teal-500 transition disabled:bg-teal-300"
-            disabled={loading}
+            disabled={localLoading} // Use local loading state
           >
-            {loading ? "Signing in..." : "Sign In"}
+            {localLoading ? "Signing in..." : "Sign In"}{" "}
+            {/* Use local loading state */}
           </button>
 
           {/* Error Message */}
