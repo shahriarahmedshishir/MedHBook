@@ -34,16 +34,6 @@ const SignUp = () => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // --- Check file type if desired ---
-    // const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
-    // if (!validTypes.includes(file.type)) {
-    //   setError("Please select a valid image file (jpg, png, gif).");
-    //   return;
-    // } else {
-    //   setError(null); // Clear error if valid
-    // }
-    // --- End File Type Check ---
-
     const reader = new FileReader();
     reader.onloadend = () => {
       setPreview(reader.result); // Set preview using Base64 result
@@ -83,9 +73,7 @@ const SignUp = () => {
       // ✅ 3. Send user data (including file) to backend
       const res = await fetch("http://localhost:3000/userdata", {
         method: "POST",
-        // Note: Do NOT set Content-Type header when using FormData
-        // The browser sets it automatically with the correct boundary
-        body: userDataToSend, // Send FormData object
+        body: userDataToSend,
       });
 
       const data = await res.json();

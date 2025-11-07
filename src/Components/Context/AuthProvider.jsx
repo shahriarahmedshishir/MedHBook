@@ -1,4 +1,3 @@
-// AuthProvider.jsx
 import { useEffect, useState } from "react";
 import AuthContext from "./AuthContext";
 import {
@@ -6,6 +5,7 @@ import {
   signInWithEmailAndPassword,
   signOut,
   createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
 } from "firebase/auth";
 import auth from "../Firebase/firebase.init";
 
@@ -16,62 +16,113 @@ const AuthProvider = ({ children }) => {
 
   const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
-  // Create new user (Sign Up)
+  // -------------------- SIGN UP --------------------
   const createUser = (email, password) => {
     setLoading(true);
     return createUserWithEmailAndPassword(auth, email, password);
   };
 
-  // Sign In user
-  const signInUser = (email, password) => {
+  // -------------------- SIGN IN --------------------
+  const signInUser = async (email, password) => {
     setLoading(true);
-    return signInWithEmailAndPassword(auth, email, password);
+    try {
+      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = cred.user;
+
+      await firebaseUser.getIdToken(true);
+      const idTokenResult = await firebaseUser.getIdTokenResult();
+      const adminFlag = !!idTokenResult.claims.admin;
+      setIsAdmin(adminFlag);
+
+      // Fetch backend user info
+      const res = await fetch(`${serverURL}/user`);
+      const data = await res.json();
+      const matchedUser = data.find((u) => u.email === firebaseUser.email);
+
+      setUser({
+        email: firebaseUser.email,
+        name:
+          matchedUser?.name ||
+          firebaseUser.displayName ||
+          firebaseUser.email.split("@")[0],
+        uid: matchedUser?.uid || null,
+        img: matchedUser?.img
+          ? `${serverURL}${matchedUser.img}`
+          : "https://i.pravatar.cc/40?img=3",
+        role: matchedUser?.role || "user",
+      });
+
+      return firebaseUser;
+    } catch (error) {
+      setUser(null);
+      setIsAdmin(false);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
   };
 
-  // Sign Out user
+  // -------------------- SIGN OUT --------------------
   const signOutUser = () => {
     setLoading(true);
     setIsAdmin(false);
-    return signOut(auth);
+    setUser(null);
+    return signOut(auth).finally(() => setLoading(false));
   };
 
-  // Handle user state + fetch backend data
+  // -------------------- PASSWORD RESET --------------------
+  const resetPassword = async (email) => {
+    setLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, email);
+      return true;
+    } catch (err) {
+      console.error("Password reset error:", err);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // -------------------- AUTH STATE LISTENER --------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser?.email) {
-        try {
-          // Fetch user list from backend
-          const res = await fetch(`${serverURL}/user`);
-          const data = await res.json();
-
-          // Find the matching user by email
-          const matchedUser = data.find((u) => u.email === firebaseUser.email);
-
-          setUser({
-            email: firebaseUser.email,
-            name:
-              matchedUser?.name ||
-              firebaseUser.displayName ||
-              firebaseUser.email.split("@")[0],
-            uid: matchedUser?.uid || null, // ✅ Custom UID from backend
-            img: matchedUser?.img
-              ? `${serverURL}${matchedUser.img}`
-              : "https://i.pravatar.cc/40?img=3",
-            role: matchedUser?.role || "user",
-          });
-
-          // Handle admin role if applicable
-          const idTokenResult = await firebaseUser.getIdTokenResult();
-          setIsAdmin(!!idTokenResult.claims.admin);
-        } catch (error) {
-          console.error("Error fetching user details:", error);
-          setUser(firebaseUser);
-        }
-      } else {
+      if (!firebaseUser?.email) {
         setUser(null);
         setIsAdmin(false);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      try {
+        await firebaseUser.getIdToken(true);
+        const idTokenResult = await firebaseUser.getIdTokenResult();
+        const adminFlag = !!idTokenResult.claims.admin;
+        setIsAdmin(adminFlag);
+
+        const res = await fetch(`${serverURL}/user`);
+        const data = await res.json();
+        const matchedUser = data.find((u) => u.email === firebaseUser.email);
+
+        setUser({
+          email: firebaseUser.email,
+          name:
+            matchedUser?.name ||
+            firebaseUser.displayName ||
+            firebaseUser.email.split("@")[0],
+          uid: matchedUser?.uid || null,
+          img: matchedUser?.img
+            ? `${serverURL}${matchedUser.img}`
+            : "https://i.pravatar.cc/40?img=3",
+          role: matchedUser?.role || "user",
+        });
+      } catch (err) {
+        console.error("Error fetching user details:", err);
+        setUser(firebaseUser);
+        setIsAdmin(false);
+      } finally {
+        setLoading(false);
+      }
     });
 
     return () => unsubscribe();
@@ -84,6 +135,7 @@ const AuthProvider = ({ children }) => {
     createUser,
     signInUser,
     signOutUser,
+    resetPassword,
   };
 
   return (

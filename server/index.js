@@ -65,9 +65,9 @@ async function connectDB() {
 app.post("/userdata", upload.single("img"), async (req, res) => {
   try {
     const { name, email, mobileNo, role } = req.body;
-    const imgPath = req.file
-      ? `${BASE_URL}/uploads/${req.file.filename}`
-      : null;
+
+    // Only send relative path
+    const imgPath = req.file ? `/uploads/${req.file.filename}` : null;
 
     const lastUser = await userCollection
       .find({})

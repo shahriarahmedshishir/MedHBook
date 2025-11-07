@@ -1,5 +1,5 @@
 import { useContext, useRef, useState, useEffect } from "react";
-import { Upload, Trash2 } from "lucide-react";
+import { Upload, Trash2, X } from "lucide-react";
 import AuthContext from "../Components/Context/AuthContext";
 import { serverURL } from "../config";
 
@@ -12,21 +12,17 @@ const Prescriptions = () => {
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
   const [userUid, setUserUid] = useState(null);
+  const [selectedForDelete, setSelectedForDelete] = useState([]);
 
-  // ✅ Fetch UID for logged-in user
+  // Fetch UID
   useEffect(() => {
+    if (!user?.email) return;
     const fetchUserUid = async () => {
-      if (!user?.email) return;
       try {
         const res = await fetch(`${serverURL}/user`);
         const allUsers = await res.json();
         const matchedUser = allUsers.find((u) => u.email === user.email);
-        if (matchedUser?.uid) {
-          setUserUid(matchedUser.uid);
-          console.log("✅ Found user UID:", matchedUser.uid);
-        } else {
-          console.warn("⚠️ UID not found for user", user.email);
-        }
+        if (matchedUser?.uid) setUserUid(matchedUser.uid);
       } catch (err) {
         console.error("Error fetching UID:", err);
       }
@@ -34,14 +30,24 @@ const Prescriptions = () => {
     fetchUserUid();
   }, [user]);
 
+  // File selection
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) setSelectedFiles((prev) => [...prev, ...files]);
     e.target.value = "";
   };
 
-  const handleRemoveSelectedFile = (name) => {
+  const handleRemoveSelectedFile = (name) =>
     setSelectedFiles((prev) => prev.filter((f) => f.name !== name));
+
+  const toggleSelectForDelete = (id) => {
+    setSelectedForDelete((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleDeleteSelected = () => {
+    selectedForDelete.forEach((id) => handleRemoveStoredFile(id));
   };
 
   const handleRemoveStoredFile = async (id) => {
@@ -51,33 +57,26 @@ const Prescriptions = () => {
       });
       if (!res.ok) throw new Error("Failed to delete prescription");
       setPrescriptions((prev) => prev.filter((f) => f._id !== id));
+      setSelectedForDelete((prev) => prev.filter((x) => x !== id));
     } catch (err) {
       console.error(err);
       alert("Error deleting prescription: " + err.message);
     }
   };
 
-  // ✅ Upload prescription (includes UID)
+  // Upload
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!doctorName.trim()) return alert("Enter doctor's name");
     if (!user?.email) return alert("User info missing");
-    if (!userUid)
-      return alert("User UID not loaded yet. Please wait a second.");
-    if (selectedFiles.length === 0) return alert("Select at least one file");
+    if (!userUid) return alert("User UID not loaded yet. Please wait.");
+    if (!selectedFiles.length) return alert("Select at least one file");
 
     const formData = new FormData();
     formData.append("email", user.email);
     formData.append("doctorName", doctorName);
     formData.append("uid", userUid);
     selectedFiles.forEach((file) => formData.append("files", file));
-
-    console.log("📦 Uploading prescription:", {
-      email: user.email,
-      doctorName,
-      uid: userUid,
-      files: selectedFiles.map((f) => f.name),
-    });
 
     setUploading(true);
     try {
@@ -99,15 +98,14 @@ const Prescriptions = () => {
     }
   };
 
-  // ✅ Fetch prescriptions
+  // Fetch prescriptions
   useEffect(() => {
+    if (!user?.email) return;
     const fetchPrescriptions = async () => {
-      if (!user?.email) return;
       try {
         const res = await fetch(
           `${serverURL}/prescriptions?email=${encodeURIComponent(user.email)}`
         );
-        if (!res.ok) throw new Error("Failed to fetch prescriptions");
         const data = await res.json();
         setPrescriptions(Array.isArray(data) ? data : []);
       } catch (err) {
@@ -179,11 +177,7 @@ const Prescriptions = () => {
               }
               className="bg-teal-500 text-white px-6 py-2 rounded-full"
             >
-              {uploading
-                ? "Uploading..."
-                : userUid
-                ? "Upload"
-                : "Loading UID..."}
+              {uploading ? "Uploading..." : "Upload"}
             </button>
           </form>
         </div>
@@ -196,8 +190,16 @@ const Prescriptions = () => {
             prescriptions.map((p) => (
               <div
                 key={p._id}
-                className="bg-white rounded-xl shadow p-4 flex flex-col"
+                className="relative bg-white rounded-xl shadow p-4 flex flex-col"
               >
+                {/* Checkbox */}
+                <input
+                  type="checkbox"
+                  className="absolute top-2 left-2 w-5 h-5"
+                  checked={selectedForDelete.includes(p._id)}
+                  onChange={() => toggleSelectForDelete(p._id)}
+                />
+
                 {p.img && (
                   <img
                     src={`${serverURL}${p.img}`}
@@ -212,17 +214,23 @@ const Prescriptions = () => {
                 <p className="text-sm text-gray-500 mb-2">
                   {new Date(p.createdAt).toLocaleString()}
                 </p>
-                <button
-                  onClick={() => handleRemoveStoredFile(p._id)}
-                  className="mt-auto bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                >
-                  Delete
-                </button>
               </div>
             ))
           )}
         </div>
       </div>
+
+      {/* Sticky Delete Button */}
+      {selectedForDelete.length > 0 && (
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+          <button
+            onClick={handleDeleteSelected}
+            className="bg-red-500 text-white px-6 py-3 rounded-full shadow-lg"
+          >
+            Delete Selected ({selectedForDelete.length})
+          </button>
+        </div>
+      )}
 
       {/* Full Image Modal */}
       {modalImg && (
@@ -230,11 +238,19 @@ const Prescriptions = () => {
           className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
           onClick={() => setModalImg(null)}
         >
-          <img
-            src={modalImg}
-            alt="Full view"
-            className="max-h-[90%] max-w-[90%] rounded-md"
-          />
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={modalImg}
+              alt="Full view"
+              className="max-h-[90vh] max-w-[90vw] rounded-md"
+            />
+            <button
+              className="absolute top-2 right-2 text-white bg-gray-800 bg-opacity-60 hover:bg-opacity-80 rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold"
+              onClick={() => setModalImg(null)}
+            >
+              &times;
+            </button>
+          </div>
         </div>
       )}
     </div>
