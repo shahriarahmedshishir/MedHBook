@@ -76,7 +76,6 @@ const DoctorHome = () => {
                 {user.name}
               </h2>
               <p className="text-gray-600">{user.email}</p>
-              <p className="text-gray-500 text-sm mt-1">UID: {user.uid}</p>
             </div>
           </div>
         )}

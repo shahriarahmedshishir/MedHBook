@@ -1,5 +1,5 @@
 import { useContext, useRef, useState, useEffect } from "react";
-import { Upload, Trash2 } from "lucide-react";
+import { Upload, Trash2, Download } from "lucide-react";
 import AuthContext from "../Components/Context/AuthContext";
 import { serverURL } from "../config";
 
@@ -8,11 +8,11 @@ const Reports = () => {
   const [reports, setReports] = useState([]);
   const [doctorName, setDoctorName] = useState("");
   const [uploading, setUploading] = useState(false);
-  const reportInputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
   const [userUid, setUserUid] = useState(null);
   const [selectedForDelete, setSelectedForDelete] = useState([]);
+  const reportInputRef = useRef(null);
 
   // Fetch UID
   useEffect(() => {
@@ -61,6 +61,33 @@ const Reports = () => {
     } catch (err) {
       console.error(err);
       alert("Error deleting report: " + err.message);
+    }
+  };
+
+  // Download selected
+  const handleDownloadSelected = async () => {
+    for (const id of selectedForDelete) {
+      const item = reports.find((r) => r._id === id);
+      if (!item || !item.img) continue;
+
+      const imageUrl = `${serverURL}${item.img}`;
+      const fileName = `Report_${item.doctorName || "Unknown"}.jpg`;
+
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Download error:", error);
+      }
     }
   };
 
@@ -220,14 +247,21 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Sticky Delete Button */}
+      {/* Sticky Action Buttons */}
       {selectedForDelete.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex flex-col sm:flex-row items-center gap-3">
           <button
             onClick={handleDeleteSelected}
-            className="bg-red-500 text-white px-6 py-3 rounded-full shadow-lg"
+            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full shadow-lg w-48 text-center transition-all"
           >
             Delete Selected ({selectedForDelete.length})
+          </button>
+
+          <button
+            onClick={handleDownloadSelected}
+            className="bg-teal-500 hover:bg-teal-600 text-white px-6 py-3 rounded-full shadow-lg w-48 text-center transition-all"
+          >
+            Download Selected ({selectedForDelete.length})
           </button>
         </div>
       )}

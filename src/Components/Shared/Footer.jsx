@@ -22,7 +22,7 @@ const Footer = () => {
         <div className="max-w-7xl mx-auto px-6 py-6 text-center text-sm font-medium flex flex-col sm:flex-row items-center justify-center gap-2">
           <p className="flex items-center gap-1">
             <a
-              href="https://prebuiltui.com"
+              href="blank"
               target="_blank"
               rel="noopener noreferrer"
               className="font-semibold hover:text-[#007b8f] transition-colors"

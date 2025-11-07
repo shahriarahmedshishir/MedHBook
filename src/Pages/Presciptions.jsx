@@ -1,18 +1,18 @@
 import { useContext, useRef, useState, useEffect } from "react";
-import { Upload, Trash2, X } from "lucide-react";
+import { Upload, Trash2, Download } from "lucide-react";
 import AuthContext from "../Components/Context/AuthContext";
 import { serverURL } from "../config";
 
-const Prescriptions = () => {
+const Prescription = () => {
   const { user } = useContext(AuthContext);
   const [prescriptions, setPrescriptions] = useState([]);
   const [doctorName, setDoctorName] = useState("");
   const [uploading, setUploading] = useState(false);
-  const prescriptionInputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
   const [userUid, setUserUid] = useState(null);
   const [selectedForDelete, setSelectedForDelete] = useState([]);
+  const prescriptionInputRef = useRef(null);
 
   // Fetch UID
   useEffect(() => {
@@ -61,6 +61,33 @@ const Prescriptions = () => {
     } catch (err) {
       console.error(err);
       alert("Error deleting prescription: " + err.message);
+    }
+  };
+
+  // Download selected
+  const handleDownloadSelected = async () => {
+    for (const id of selectedForDelete) {
+      const item = prescriptions.find((p) => p._id === id);
+      if (!item || !item.img) continue;
+
+      const imageUrl = `${serverURL}${item.img}`;
+      const fileName = `Prescription_${item.doctorName || "Unknown"}.jpg`;
+
+      try {
+        const response = await fetch(imageUrl);
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } catch (error) {
+        console.error("Download error:", error);
+      }
     }
   };
 
@@ -187,32 +214,32 @@ const Prescriptions = () => {
           {prescriptions.length === 0 ? (
             <p>No prescriptions uploaded yet.</p>
           ) : (
-            prescriptions.map((p) => (
+            prescriptions.map((report) => (
               <div
-                key={p._id}
+                key={report._id}
                 className="relative bg-white rounded-xl shadow p-4 flex flex-col"
               >
                 {/* Checkbox */}
                 <input
                   type="checkbox"
                   className="absolute top-2 left-2 w-5 h-5"
-                  checked={selectedForDelete.includes(p._id)}
-                  onChange={() => toggleSelectForDelete(p._id)}
+                  checked={selectedForDelete.includes(report._id)}
+                  onChange={() => toggleSelectForDelete(report._id)}
                 />
 
-                {p.img && (
+                {report.img && (
                   <img
-                    src={`${serverURL}${p.img}`}
-                    alt={p.doctorName}
+                    src={`${serverURL}${report.img}`}
+                    alt={report.doctorName}
                     className="h-48 w-full object-cover rounded-md mb-3 cursor-pointer"
-                    onClick={() => setModalImg(`${serverURL}${p.img}`)}
+                    onClick={() => setModalImg(`${serverURL}${report.img}`)}
                   />
                 )}
                 <h3 className="text-lg font-semibold mb-2">
-                  Dr. {p.doctorName}
+                  Dr. {report.doctorName}
                 </h3>
                 <p className="text-sm text-gray-500 mb-2">
-                  {new Date(p.createdAt).toLocaleString()}
+                  {new Date(report.createdAt).toLocaleString()}
                 </p>
               </div>
             ))
@@ -220,14 +247,21 @@ const Prescriptions = () => {
         </div>
       </div>
 
-      {/* Sticky Delete Button */}
+      {/* Sticky Action Buttons */}
       {selectedForDelete.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50">
+        <div className="fixed bottom-4 left-1/2 transform -translate-x-1/2 z-50 flex flex-col sm:flex-row items-center gap-3">
           <button
             onClick={handleDeleteSelected}
-            className="bg-red-500 text-white px-6 py-3 rounded-full shadow-lg"
+            className="bg-red-500 hover:bg-red-600 text-white px-6 py-3 rounded-full shadow-lg w-48 text-center transition-all"
           >
             Delete Selected ({selectedForDelete.length})
+          </button>
+
+          <button
+            onClick={handleDownloadSelected}
+            className="bg-teal-500 hover:bg-teal-600 text-white px-6 py-3 rounded-full shadow-lg w-48 text-center transition-all"
+          >
+            Download Selected ({selectedForDelete.length})
           </button>
         </div>
       )}
@@ -257,4 +291,4 @@ const Prescriptions = () => {
   );
 };
 
-export default Prescriptions;
+export default Prescription;

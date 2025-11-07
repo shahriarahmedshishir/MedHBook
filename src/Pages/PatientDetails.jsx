@@ -1,4 +1,3 @@
-// src/Pages/PatientDetails.jsx
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -146,17 +145,25 @@ const PatientDetails = () => {
         )}
       </div>
 
-      {/* Fullscreen Image Modal */}
+      {/* Fullscreen Image Modal with Close Button */}
       {modalImg && (
         <div
           className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
           onClick={() => setModalImg(null)}
         >
-          <img
-            src={modalImg}
-            alt="Full screen"
-            className="max-h-full max-w-full rounded-xl"
-          />
+          <div className="relative" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={modalImg}
+              alt="Full screen"
+              className="max-h-[90vh] max-w-[90vw] rounded-xl"
+            />
+            <button
+              className="absolute top-2 right-2 text-white bg-gray-800 bg-opacity-60 hover:bg-opacity-80 rounded-full w-8 h-8 flex items-center justify-center text-xl font-bold"
+              onClick={() => setModalImg(null)}
+            >
+              &times;
+            </button>
+          </div>
         </div>
       )}
     </div>
