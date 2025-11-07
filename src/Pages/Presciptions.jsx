@@ -11,8 +11,29 @@ const Prescriptions = () => {
   const prescriptionInputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
+  const [userUid, setUserUid] = useState(null);
 
-  // File selection
+  // ✅ Fetch UID for logged-in user
+  useEffect(() => {
+    const fetchUserUid = async () => {
+      if (!user?.email) return;
+      try {
+        const res = await fetch(`${serverURL}/user`);
+        const allUsers = await res.json();
+        const matchedUser = allUsers.find((u) => u.email === user.email);
+        if (matchedUser?.uid) {
+          setUserUid(matchedUser.uid);
+          console.log("✅ Found user UID:", matchedUser.uid);
+        } else {
+          console.warn("⚠️ UID not found for user", user.email);
+        }
+      } catch (err) {
+        console.error("Error fetching UID:", err);
+      }
+    };
+    fetchUserUid();
+  }, [user]);
+
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length > 0) setSelectedFiles((prev) => [...prev, ...files]);
@@ -36,17 +57,27 @@ const Prescriptions = () => {
     }
   };
 
-  // Upload
+  // ✅ Upload prescription (includes UID)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!doctorName.trim()) return alert("Enter doctor's name");
-    if (!user || !user.email) return alert("User info missing");
+    if (!user?.email) return alert("User info missing");
+    if (!userUid)
+      return alert("User UID not loaded yet. Please wait a second.");
     if (selectedFiles.length === 0) return alert("Select at least one file");
 
     const formData = new FormData();
     formData.append("email", user.email);
     formData.append("doctorName", doctorName);
+    formData.append("uid", userUid);
     selectedFiles.forEach((file) => formData.append("files", file));
+
+    console.log("📦 Uploading prescription:", {
+      email: user.email,
+      doctorName,
+      uid: userUid,
+      files: selectedFiles.map((f) => f.name),
+    });
 
     setUploading(true);
     try {
@@ -68,10 +99,10 @@ const Prescriptions = () => {
     }
   };
 
-  // Fetch prescriptions
+  // ✅ Fetch prescriptions
   useEffect(() => {
     const fetchPrescriptions = async () => {
-      if (!user || !user.email) return;
+      if (!user?.email) return;
       try {
         const res = await fetch(
           `${serverURL}/prescriptions?email=${encodeURIComponent(user.email)}`
@@ -141,11 +172,18 @@ const Prescriptions = () => {
             <button
               type="submit"
               disabled={
-                uploading || !doctorName.trim() || selectedFiles.length === 0
+                uploading ||
+                !doctorName.trim() ||
+                selectedFiles.length === 0 ||
+                !userUid
               }
               className="bg-teal-500 text-white px-6 py-2 rounded-full"
             >
-              {uploading ? "Uploading..." : "Upload"}
+              {uploading
+                ? "Uploading..."
+                : userUid
+                ? "Upload"
+                : "Loading UID..."}
             </button>
           </form>
         </div>
@@ -155,27 +193,27 @@ const Prescriptions = () => {
           {prescriptions.length === 0 ? (
             <p>No prescriptions uploaded yet.</p>
           ) : (
-            prescriptions.map((presc) => (
+            prescriptions.map((p) => (
               <div
-                key={presc._id}
+                key={p._id}
                 className="bg-white rounded-xl shadow p-4 flex flex-col"
               >
-                {presc.img && (
+                {p.img && (
                   <img
-                    src={`${serverURL}${presc.img}`} // ✅ full URL
-                    alt={presc.doctorName}
+                    src={`${serverURL}${p.img}`}
+                    alt={p.doctorName}
                     className="h-48 w-full object-cover rounded-md mb-3 cursor-pointer"
-                    onClick={() => setModalImg(`${serverURL}${presc.img}`)}
+                    onClick={() => setModalImg(`${serverURL}${p.img}`)}
                   />
                 )}
                 <h3 className="text-lg font-semibold mb-2">
-                  Dr. {presc.doctorName}
+                  Dr. {p.doctorName}
                 </h3>
                 <p className="text-sm text-gray-500 mb-2">
-                  {new Date(presc.createdAt).toLocaleString()}
+                  {new Date(p.createdAt).toLocaleString()}
                 </p>
                 <button
-                  onClick={() => handleRemoveStoredFile(presc._id)}
+                  onClick={() => handleRemoveStoredFile(p._id)}
                   className="mt-auto bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                 >
                   Delete
@@ -186,7 +224,7 @@ const Prescriptions = () => {
         </div>
       </div>
 
-      {/* Modal for full image */}
+      {/* Full Image Modal */}
       {modalImg && (
         <div
           className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"

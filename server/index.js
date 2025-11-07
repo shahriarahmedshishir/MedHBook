@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const cors = require("cors");
 const dotenv = require("dotenv");
@@ -11,7 +10,7 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 3000;
 
-// ===== Base URL (dynamic for localhost & production) =====
+// ===== Base URL =====
 const BASE_URL = process.env.BASE_URL || `http://localhost:${port}`;
 
 // ===== Middleware =====
@@ -62,7 +61,7 @@ async function connectDB() {
 
 // ===== USERS =====
 
-// Create user with optional image
+// Create user
 app.post("/userdata", upload.single("img"), async (req, res) => {
   try {
     const { name, email, mobileNo, role } = req.body;
@@ -112,16 +111,19 @@ app.get("/user", async (req, res) => {
 // Upload prescriptions
 app.post("/prescriptions", upload.array("files"), async (req, res) => {
   try {
-    const { doctorName, email } = req.body;
+    const { doctorName, email, uid } = req.body;
 
-    if (!email || !doctorName)
-      return res.status(400).json({ message: "Email and doctorName required" });
+    if (!email || !doctorName || !uid)
+      return res
+        .status(400)
+        .json({ message: "Email, doctorName, and uid are required" });
 
     if (!req.files || req.files.length === 0)
       return res.status(400).json({ message: "No files uploaded" });
 
     const docs = req.files.map((file) => ({
       email,
+      uid: parseInt(uid),
       doctorName,
       img: `/uploads/${file.filename}`,
       createdAt: new Date(),
@@ -135,14 +137,16 @@ app.post("/prescriptions", upload.array("files"), async (req, res) => {
   }
 });
 
-// Fetch prescriptions
+// Fetch prescriptions (by email or uid)
 app.get("/prescriptions", async (req, res) => {
   try {
-    const email = req.query.email;
-    if (!email) return res.status(400).json({ message: "Email required" });
+    const { email, uid } = req.query;
+    if (!email && !uid)
+      return res.status(400).json({ message: "Email or UID required" });
 
+    const filter = uid ? { uid: parseInt(uid) } : { email };
     const prescriptions = await userPrescription
-      .find({ email })
+      .find(filter)
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -180,15 +184,19 @@ app.delete("/prescriptions/:id", async (req, res) => {
 // Upload reports
 app.post("/reports", upload.array("files"), async (req, res) => {
   try {
-    const { doctorName, email } = req.body;
-    if (!email || !doctorName)
-      return res.status(400).json({ message: "Email and doctorName required" });
+    const { doctorName, email, uid } = req.body;
+
+    if (!email || !doctorName || !uid)
+      return res
+        .status(400)
+        .json({ message: "Email, doctorName, and uid are required" });
 
     if (!req.files || req.files.length === 0)
       return res.status(400).json({ message: "No files uploaded" });
 
     const docs = req.files.map((file) => ({
       email,
+      uid: parseInt(uid),
       doctorName,
       img: `/uploads/${file.filename}`,
       createdAt: new Date(),
@@ -202,14 +210,16 @@ app.post("/reports", upload.array("files"), async (req, res) => {
   }
 });
 
-// Fetch reports
+// Fetch reports (by email or uid)
 app.get("/reports", async (req, res) => {
   try {
-    const email = req.query.email;
-    if (!email) return res.status(400).json({ message: "Email required" });
+    const { email, uid } = req.query;
+    if (!email && !uid)
+      return res.status(400).json({ message: "Email or UID required" });
 
+    const filter = uid ? { uid: parseInt(uid) } : { email };
     const reports = await userReports
-      .find({ email })
+      .find(filter)
       .sort({ createdAt: -1 })
       .toArray();
 

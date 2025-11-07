@@ -11,6 +11,28 @@ const Reports = () => {
   const reportInputRef = useRef(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
+  const [userUid, setUserUid] = useState(null);
+
+  // ✅ Fetch the UID for the logged-in user
+  useEffect(() => {
+    const fetchUserUid = async () => {
+      if (!user?.email) return;
+      try {
+        const res = await fetch(`${serverURL}/user`);
+        const allUsers = await res.json();
+        const matchedUser = allUsers.find((u) => u.email === user.email);
+        if (matchedUser?.uid) {
+          setUserUid(matchedUser.uid);
+          console.log("✅ Found user UID:", matchedUser.uid);
+        } else {
+          console.warn("⚠️ UID not found for user", user.email);
+        }
+      } catch (err) {
+        console.error("Error fetching user UID:", err);
+      }
+    };
+    fetchUserUid();
+  }, [user]);
 
   const handleFileChange = (e) => {
     const files = Array.from(e.target.files);
@@ -35,16 +57,27 @@ const Reports = () => {
     }
   };
 
+  // ✅ Upload (includes UID)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!doctorName.trim()) return alert("Enter doctor's name");
-    if (!user || !user.email) return alert("User info missing");
+    if (!user?.email) return alert("User info missing");
+    if (!userUid)
+      return alert("User UID not loaded yet. Please wait a second.");
     if (selectedFiles.length === 0) return alert("Select at least one file");
 
     const formData = new FormData();
     formData.append("email", user.email);
     formData.append("doctorName", doctorName);
+    formData.append("uid", userUid);
     selectedFiles.forEach((file) => formData.append("files", file));
+
+    console.log("📦 Uploading with data:", {
+      email: user.email,
+      doctorName,
+      uid: userUid,
+      files: selectedFiles.map((f) => f.name),
+    });
 
     setUploading(true);
     try {
@@ -66,9 +99,10 @@ const Reports = () => {
     }
   };
 
+  // Fetch reports
   useEffect(() => {
     const fetchReports = async () => {
-      if (!user || !user.email) return;
+      if (!user?.email) return;
       try {
         const res = await fetch(
           `${serverURL}/reports?email=${encodeURIComponent(user.email)}`
@@ -138,11 +172,18 @@ const Reports = () => {
             <button
               type="submit"
               disabled={
-                uploading || !doctorName.trim() || selectedFiles.length === 0
+                uploading ||
+                !doctorName.trim() ||
+                selectedFiles.length === 0 ||
+                !userUid
               }
               className="bg-teal-500 text-white px-6 py-2 rounded-full"
             >
-              {uploading ? "Uploading..." : "Upload"}
+              {uploading
+                ? "Uploading..."
+                : userUid
+                ? "Upload"
+                : "Loading UID..."}
             </button>
           </form>
         </div>
@@ -183,7 +224,7 @@ const Reports = () => {
         </div>
       </div>
 
-      {/* Modal for full image */}
+      {/* Full Image Modal */}
       {modalImg && (
         <div
           className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50"
