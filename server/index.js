@@ -8,6 +8,7 @@ const fs = require("fs");
 
 dotenv.config();
 const app = express();
+app.use(express.json());
 const port = process.env.PORT || 3000;
 
 // ===== Base URL =====
@@ -44,7 +45,7 @@ const client = new MongoClient(uri, {
   serverApi: { version: ServerApiVersion.v1 },
 });
 
-let userCollection, userPrescription, userReports;
+let userCollection, userPrescription, userReports, doctorCollection;
 
 async function connectDB() {
   try {
@@ -53,6 +54,7 @@ async function connectDB() {
     userCollection = db.collection("userdata");
     userPrescription = db.collection("userPrescription");
     userReports = db.collection("userReports");
+    doctorCollection = db.collection("doctorCollection");
     console.log("✅ Connected to MongoDB!");
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
@@ -103,6 +105,56 @@ app.get("/user", async (req, res) => {
   } catch (err) {
     console.error("Error fetching users:", err);
     res.status(500).json({ message: err.message });
+  }
+});
+
+app.post("/doctor", async (req, res) => {
+  try {
+    const email = req.body.email;
+
+    const exists = await doctorCollection.findOne({ email });
+    if (exists) {
+      return res.status(400).json({ message: "Doctor already exists" });
+    }
+
+    await doctorCollection.insertOne(req.body);
+    res.json({ message: "Doctor profile created", doctor: req.body });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🔵 READ doctor by email (GET)
+
+app.get("/doctor/:email", async (req, res) => {
+  try {
+    const doctor = await doctorCollection.findOne({ email: req.params.email });
+    // If no profile, just return null
+    return res.json(doctor || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 🟡 UPDATE doctor by email (PUT)
+app.put("/doctor/:email", async (req, res) => {
+  try {
+    const updated = await doctorCollection.findOneAndUpdate(
+      { email: req.params.email },
+      { $set: req.body },
+      { returnDocument: "after" }
+    );
+
+    if (!updated.value) {
+      return res.status(404).json({ message: "Doctor not found" });
+    }
+
+    res.json({
+      message: "Doctor profile updated",
+      doctor: updated.value,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

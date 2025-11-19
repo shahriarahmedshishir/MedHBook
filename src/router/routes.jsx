@@ -8,6 +8,8 @@ import DoctorHome from "../Pages/DoctorHome";
 import PatientDetails from "../Pages/PatientDetails";
 import Prescriptions from "../Pages/Presciptions";
 import Reports from "../Pages/Reports";
+import EditDoctorProfile from "../Pages/EditDoctorProfile";
+import PrivateRouter from "../Components/PrivateRouter/PrivateRoter";
 
 // Example of a fake auth check (replace with your real one)
 const isAuthenticated = false; // later, you’ll use Firebase or context here
@@ -35,8 +37,26 @@ const routes = createBrowserRouter([
       { path: "patient", element: <PatientHome /> },
       { path: "patient/prescriptions", element: <Prescriptions /> },
       { path: "patient/reports", element: <Reports /> },
-      { path: "doctor", element: <DoctorHome /> },
-      { path: "patient-details", element: <PatientDetails /> },
+      {
+        path: "doctor",
+        element: (
+          <PrivateRouter>
+            <DoctorHome />
+          </PrivateRouter>
+        ),
+      },
+      {
+        path: "patient-details",
+        element: (
+          <PrivateRouter>
+            <PatientDetails />
+          </PrivateRouter>
+        ),
+      },
+      {
+        path: "/edit-doctor-profile",
+        element: <EditDoctorProfile />,
+      },
     ],
   },
 ]);

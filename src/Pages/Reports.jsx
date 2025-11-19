@@ -261,7 +261,7 @@ const Reports = () => {
             onClick={handleDownloadSelected}
             className="bg-teal-500 hover:bg-teal-600 text-white px-6 py-3 rounded-full shadow-lg w-48 text-center transition-all"
           >
-            Download Selected ({selectedForDelete.length})
+            Download Selected
           </button>
         </div>
       )}

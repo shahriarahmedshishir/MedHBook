@@ -1,20 +1,32 @@
 // src/Pages/PatientHome.jsx
-import { useContext } from "react";
 import { CalendarCheck, FileText, Pill, File } from "lucide-react";
 import { Link } from "react-router-dom";
 import AuthContext from "../Components/Context/AuthContext";
 
 const PatientHome = () => {
-  const { user, isAdmin, signOutUser } = useContext(AuthContext);
-
   const handleReminder = () => alert("Reminder feature coming soon!");
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-[#e0f7fa] to-[#b2ebf2] p-6">
-      <div className="max-w-5xl mx-auto flex flex-col justify-center items-center">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2 md:text-left">
-          Patient Dashboard
+      <div className="flex flex-col items-center justify-center px-4 h-[calc(35vh)]">
+        <h1
+          className="text-2xl md:text-4xl font-extrabold bg-clip-text text-transparent 
+               bg-gradient-to-r from-indigo-400 via-purple-300 to-pink-300
+               overflow-hidden border-r-4
+               whitespace-nowrap md:whitespace-normal
+               mx-auto text-center
+               max-w-[90vw] md:max-w-3xl"
+        >
+          MedHBook — a smart digital system to store, access, and share medical
+          records securely in one place.
         </h1>
+
+        <p className="mt-4 text-base md:text-lg font-semibold tracking-wide text-black/90 text-center typewriter">
+          Your Health. Your Records. One Book.
+        </p>
+      </div>
+
+      <div className="max-w-5xl mx-auto flex flex-col justify-center items-center">
         <p className="text-gray-600 mb-10 text-center md:text-left">
           Manage your prescriptions and test reports.
         </p>

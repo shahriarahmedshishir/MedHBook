@@ -1,7 +1,6 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Menu, ArrowLeft } from "lucide-react";
-import Logo from "./Logo";
 import AuthContext from "../Context/AuthContext";
 
 const Header = () => {
@@ -58,7 +57,11 @@ const Header = () => {
 
           {/* Logo */}
           <Link to="/" className="flex-shrink-0">
-            <Logo />
+            <img
+              src="/logo-banner.png"
+              alt="MedHBook Logo"
+              className="h-auto w-55 object-contain"
+            />
           </Link>
         </div>
 
