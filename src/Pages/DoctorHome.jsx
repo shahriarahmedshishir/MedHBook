@@ -1,6 +1,6 @@
 import { useEffect, useState, useContext } from "react";
 import axios from "axios";
-import { Search, Edit3 } from "lucide-react";
+import { Search, Edit3, BookOpen } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import AuthContext from "../Components/Context/AuthContext";
 
@@ -28,7 +28,9 @@ const DoctorHome = () => {
     setLoading(true);
     try {
       const res = await fetch(
-        `${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}/user`
+        `${
+          import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
+        }/user?role=patient`
       );
       if (!res.ok) throw new Error("Failed to fetch users");
 
@@ -99,18 +101,18 @@ const DoctorHome = () => {
         </div>
         {/* Doctor Card */}
         {user && (
-          <div className="flex justify-center mt-10">
-            <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-shadow duration-300 p-6 flex items-center gap-6 w-[500px] relative">
+          <div className="flex justify-center mt-6 md:mt-10 px-4">
+            <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-shadow duration-300 p-4 md:p-6 flex flex-col md:flex-row items-center gap-4 md:gap-6 w-full max-w-3xl">
               {/* Profile Image */}
               <img
                 src={getFullImageURL(user.img)}
                 alt={user.name}
-                className="w-24 h-24 rounded-full object-cover border-2 border-teal-300"
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-teal-300"
               />
 
               {/* Info Section */}
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold text-gray-800">
+              <div className="flex-1 text-center md:text-left">
+                <h2 className="text-xl md:text-2xl font-bold text-gray-800">
                   {doctor?.name || user.name}
                 </h2>
                 <p className="text-gray-500 text-sm mt-1">
@@ -133,14 +135,21 @@ const DoctorHome = () => {
                 )}
               </div>
 
-              {/* Edit Info Button */}
-              <div className="flex items-center">
+              {/* Edit Info and Create Blog Buttons */}
+              <div className="flex flex-col sm:flex-row items-center gap-2 md:gap-3 w-full md:w-auto">
                 <button
                   onClick={handleEditProfile}
-                  className="px-5 py-2 bg-gradient-to-r from-teal-400 to-teal-600 text-white font-medium rounded-full shadow-lg hover:scale-105 transform transition duration-300 flex items-center justify-center gap-2"
+                  className="w-full sm:w-auto px-4 md:px-5 py-2 bg-gradient-to-r from-teal-400 to-teal-600 text-white font-medium rounded-full shadow-lg hover:scale-105 transform transition duration-300 flex items-center justify-center gap-2 text-sm md:text-base"
                 >
                   <Edit3 className="w-4 h-4" />
                   Edit Info
+                </button>
+                <button
+                  onClick={() => navigate("/create-blog")}
+                  className="w-full sm:w-auto px-4 md:px-5 py-2 bg-gradient-to-r from-purple-400 to-purple-600 text-white font-medium rounded-full shadow-lg hover:scale-105 transform transition duration-300 flex items-center justify-center gap-2 text-sm md:text-base"
+                >
+                  <BookOpen className="w-4 h-4" />
+                  Create Blog
                 </button>
               </div>
             </div>
@@ -171,27 +180,91 @@ const DoctorHome = () => {
 
         {/* Display Searched Patient */}
         {searchedUser && (
-          <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-shadow duration-300 p-6 flex flex-col md:flex-row items-center gap-6 mt-6 w-[500px] mx-auto relative">
-            <img
-              src={getFullImageURL(searchedUser.img)}
-              alt={searchedUser.name}
-              className="w-24 h-24 rounded-full object-cover border-2 border-teal-300"
-            />
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold text-gray-800">
-                {searchedUser.name}
-              </h3>
-              <p className="text-gray-600">{searchedUser.email}</p>
-              <p className="text-gray-500 text-sm mt-1">
-                UID: {searchedUser.uid}
-              </p>
+          <div className="bg-white rounded-2xl shadow-xl hover:shadow-2xl transition-shadow duration-300 p-4 md:p-6 flex flex-col gap-4 mt-6 w-full max-w-3xl mx-auto">
+            <div className="flex flex-col md:flex-row items-center gap-4 md:gap-6">
+              <img
+                src={getFullImageURL(searchedUser.img)}
+                alt={searchedUser.name}
+                className="w-20 h-20 md:w-24 md:h-24 rounded-full object-cover border-2 border-teal-300"
+              />
+              <div className="flex-1 text-center md:text-left">
+                <h3 className="text-lg md:text-xl font-semibold text-gray-800">
+                  {searchedUser.name}
+                </h3>
+                <p className="text-gray-600 text-sm md:text-base">
+                  {searchedUser.email}
+                </p>
+                <p className="text-gray-500 text-sm mt-1">
+                  UID: {searchedUser.uid}
+                </p>
+                {searchedUser.mobileNo && (
+                  <p className="text-gray-500 text-sm mt-1">
+                    Phone: {searchedUser.mobileNo}
+                  </p>
+                )}
+                {searchedUser.bloodGroup && (
+                  <p className="text-gray-500 text-sm mt-1">
+                    Blood Group: {searchedUser.bloodGroup}
+                  </p>
+                )}
+              </div>
+              <button
+                className="w-full md:w-auto bg-gradient-to-r from-teal-400 to-teal-600 text-white px-4 md:px-6 py-2 md:py-3 rounded-full hover:scale-105 transform transition duration-300 shadow-lg flex items-center justify-center text-sm md:text-base"
+                onClick={() => handleSeeDetails(searchedUser)}
+              >
+                See All Details
+              </button>
             </div>
-            <button
-              className="bg-gradient-to-r from-teal-400 to-teal-600 text-white px-6 py-3 rounded-full hover:scale-105 transform transition duration-300 shadow-lg flex items-center justify-center h-full"
-              onClick={() => handleSeeDetails(searchedUser)}
-            >
-              See All Details
-            </button>
+
+            {/* Medical Information */}
+            <div className="border-t pt-4 space-y-2">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">
+                Medical Information
+              </h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2">
+                  <span className="text-sm font-medium text-gray-600">
+                    Allergies:
+                  </span>
+                  <span className="text-sm text-gray-800">
+                    {searchedUser.hasAllergy ? (
+                      <span className="text-red-600">
+                        Yes - {searchedUser.allergyDetails || "Not specified"}
+                      </span>
+                    ) : (
+                      <span className="text-green-600">No</span>
+                    )}
+                  </span>
+                </div>
+                <div className="flex items-start gap-2">
+                  <span className="text-sm font-medium text-gray-600">
+                    Diabetic Level:
+                  </span>
+                  <span className="text-sm text-gray-800">
+                    {searchedUser.diabeticLevel ? (
+                      <span
+                        className={`font-medium ${
+                          parseFloat(searchedUser.diabeticLevel) >= 6.5
+                            ? "text-red-600"
+                            : parseFloat(searchedUser.diabeticLevel) >= 5.7
+                            ? "text-orange-600"
+                            : "text-green-600"
+                        }`}
+                      >
+                        {searchedUser.diabeticLevel}%
+                        {parseFloat(searchedUser.diabeticLevel) >= 6.5
+                          ? " (Diabetic)"
+                          : parseFloat(searchedUser.diabeticLevel) >= 5.7
+                          ? " (Pre-diabetic)"
+                          : " (Normal)"}
+                      </span>
+                    ) : (
+                      <span className="text-gray-400">Not recorded</span>
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

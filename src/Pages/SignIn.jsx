@@ -34,6 +34,16 @@ const SignIn = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Prevent back button after logout
+  useEffect(() => {
+    window.history.pushState(null, "", window.location.href);
+    const preventBack = () => {
+      window.history.pushState(null, "", window.location.href);
+    };
+    window.addEventListener("popstate", preventBack);
+    return () => window.removeEventListener("popstate", preventBack);
+  }, []);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -72,7 +82,12 @@ const SignIn = () => {
   // Redirect after successful login
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(isAdmin ? "/doctor" : "/patient", { replace: true });
+      // Check if user has doctor role
+      if (user.role === "doctor" || user.role === "admin" || isAdmin) {
+        navigate("/doctor", { replace: true });
+      } else {
+        navigate("/patient", { replace: true });
+      }
     }
   }, [user, isAdmin, navigate, authLoading]);
 

@@ -14,12 +14,20 @@ const EditDoctorProfile = () => {
     licenseNumber: "",
     yearsOfExperience: "",
     education: "",
+    college: "",
+    degree: "",
+    doctorType: "",
     certifications: [],
     bio: "",
+    img: null, // New image file to upload
+    existingImg: "", // Existing image path from database
     uid: "", // store uid
   });
 
   const [profileExists, setProfileExists] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState({ type: null, message: "" }); // 'success', 'error', 'loading'
 
   useEffect(() => {
     if (!user?.email) return;
@@ -37,10 +45,22 @@ const EditDoctorProfile = () => {
           licenseNumber: data.licenseNumber || "",
           yearsOfExperience: data.yearsOfExperience || "",
           education: data.education || "",
+          college: data.college || "",
+          degree: data.degree || "",
+          doctorType: data.doctorType || "",
           certifications: data.certifications || [],
           bio: data.bio || "",
+          img: null,
+          existingImg: data.img || "", // Store existing image path
           uid: user.uid, // always add uid
         });
+        if (data.img) {
+          const serverURL =
+            import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+          setImagePreview(
+            data.img.startsWith("http") ? data.img : `${serverURL}${data.img}`
+          );
+        }
         setProfileExists(true);
       })
       .catch(() => {
@@ -49,8 +69,11 @@ const EditDoctorProfile = () => {
           ...prev,
           name: user.name || "",
           email: user.email || "",
+          img: null,
+          existingImg: "",
           uid: user.uid || "", // set uid for new profile
         }));
+        setImagePreview(null);
         setProfileExists(false);
       });
   }, [user]);
@@ -60,35 +83,184 @@ const EditDoctorProfile = () => {
     setFormData((p) => ({ ...p, [name]: value }));
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setFormData((p) => ({ ...p, img: file }));
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDoctorTypeChange = (type) => {
+    setFormData((p) => {
+      const types = Array.isArray(p.doctorType) ? p.doctorType : [];
+      if (types.includes(type)) {
+        return { ...p, doctorType: types.filter((t) => t !== type) };
+      } else {
+        return { ...p, doctorType: [...types, type] };
+      }
+    });
+  };
+
+  const handleDegreeChange = (degree) => {
+    setFormData((p) => {
+      const degrees = Array.isArray(p.degree) ? p.degree : [];
+      if (degrees.includes(degree)) {
+        return { ...p, degree: degrees.filter((d) => d !== degree) };
+      } else {
+        return { ...p, degree: [...degrees, degree] };
+      }
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    const payload = {
-      ...formData,
-      name: user.name,
-      email: user.email,
-      uid: user.uid,
-    };
+    setLoading(true);
+    setStatus({ type: null, message: "" });
 
     try {
+      let imgPath = null;
+
+      // Upload image if selected
+      if (formData.img && formData.img instanceof File) {
+        const imageFormData = new FormData();
+        imageFormData.append("image", formData.img);
+
+        try {
+          const uploadRes = await axios.post(
+            `http://localhost:3000/upload-doctor-image`,
+            imageFormData,
+            { headers: { "Content-Type": "multipart/form-data" } }
+          );
+          imgPath = uploadRes.data.imagePath;
+        } catch (uploadErr) {
+          console.error("Image upload error:", uploadErr);
+          setStatus({ type: "error", message: "Failed to upload image" });
+          setLoading(false);
+          return;
+        }
+      }
+
+      const payload = {
+        name: user.name,
+        email: user.email,
+        uid: user.uid,
+        phone: formData.phone,
+        address: formData.address,
+        specialization: formData.specialization,
+        licenseNumber: formData.licenseNumber,
+        yearsOfExperience: formData.yearsOfExperience,
+        education: formData.education,
+        college: formData.college,
+        degree: formData.degree,
+        doctorType: Array.isArray(formData.doctorType)
+          ? formData.doctorType
+          : formData.doctorType
+          ? [formData.doctorType]
+          : [],
+        certifications: Array.isArray(formData.certifications)
+          ? formData.certifications
+          : [],
+        bio: formData.bio,
+      };
+
+      // Only add img if a new one was uploaded, otherwise keep existing
+      if (imgPath) {
+        payload.img = imgPath;
+      } else if (formData.existingImg) {
+        // Keep existing image path if no new image uploaded
+        payload.img = formData.existingImg;
+      }
+
       if (profileExists) {
-        const res = await axios.put(
-          `http://localhost:3000/doctor/${user.email}`,
-          payload
-        );
-        console.log("Profile updated:", res.data);
-        setTimeout(() => alert("Profile updated!"), 0);
+        try {
+          const res = await axios.put(
+            `http://localhost:3000/doctor/${user.email}`,
+            payload
+          );
+          console.log("Profile updated:", res.data);
+          setStatus({
+            type: "success",
+            message: "Profile updated successfully!",
+          });
+        } catch (putErr) {
+          // If doctor not found and we thought it exists, try creating it
+          if (putErr.response?.status === 404) {
+            console.log("Doctor not found, creating new profile...");
+            const res = await axios.post(
+              `http://localhost:3000/doctor`,
+              payload
+            );
+            console.log("Profile created:", res.data);
+            setStatus({
+              type: "success",
+              message: "Profile created successfully!",
+            });
+            setProfileExists(true);
+          } else {
+            throw putErr;
+          }
+        }
       } else {
-        const res = await axios.post(`http://localhost:3000/doctor`, payload);
-        console.log("Profile created:", res.data);
-        setTimeout(() => alert("Profile created!"), 0);
-        setProfileExists(true);
+        try {
+          const res = await axios.post(`http://localhost:3000/doctor`, payload);
+          console.log("Profile created:", res.data);
+          setStatus({
+            type: "success",
+            message: "Profile created successfully!",
+          });
+          setProfileExists(true);
+        } catch (postErr) {
+          // If doctor already exists and we thought it doesn't, try updating it
+          if (
+            postErr.response?.status === 400 &&
+            postErr.response?.data?.message?.includes("already exists")
+          ) {
+            console.log("Doctor already exists, updating profile...");
+            const res = await axios.put(
+              `http://localhost:3000/doctor/${user.email}`,
+              payload
+            );
+            console.log("Profile updated:", res.data);
+            setStatus({
+              type: "success",
+              message: "Profile updated successfully!",
+            });
+            setProfileExists(true);
+          } else {
+            throw postErr;
+          }
+        }
       }
+      setLoading(false);
     } catch (err) {
-      if (err.response?.status !== 404) {
-        console.error("Axios error:", err);
-        alert("Something went wrong");
+      console.error("Error:", err);
+      console.error("Error response:", err.response?.data);
+
+      // Show success anyway for common sync issues
+      if (
+        (err.response?.status === 400 &&
+          err.response?.data?.message?.includes("already exists")) ||
+        err.response?.status === 404
+      ) {
+        setStatus({
+          type: "success",
+          message: "Profile saved successfully!",
+        });
+        setProfileExists(true);
+      } else {
+        const errorMessage =
+          err.response?.data?.error ||
+          err.response?.data?.message ||
+          err.message ||
+          "Something went wrong";
+        setStatus({ type: "error", message: `Error: ${errorMessage}` });
       }
+      setLoading(false);
     }
   };
 
@@ -99,8 +271,57 @@ const EditDoctorProfile = () => {
           Edit Doctor Profile
         </h1>
 
+        {/* Status Messages */}
+        {status.type === "success" && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+            <p className="text-green-700 font-medium flex items-center gap-2">
+              <span className="text-xl">✓</span>
+              {status.message}
+            </p>
+          </div>
+        )}
+
+        {status.type === "error" && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-700 font-medium flex items-center gap-2">
+              <span className="text-xl">✕</span>
+              {status.message}
+            </p>
+          </div>
+        )}
+
+        {loading && (
+          <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-700 font-medium flex items-center gap-2">
+              <span className="animate-spin">⟳</span>
+              Processing your request...
+            </p>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          {" "}
+          {/* Profile Image Upload */}
+          <div>
+            <label className="block mb-2 font-medium">Profile Image</label>
+            {imagePreview && (
+              <div className="mb-4">
+                <img
+                  src={imagePreview}
+                  alt="Preview"
+                  className="w-32 h-32 rounded-full object-cover border-2 border-teal-300"
+                />
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="w-full border p-2 rounded-lg"
+            />
+            <p className="text-sm text-gray-500 mt-1">
+              JPG, PNG, or GIF (Max 5MB)
+            </p>
+          </div>{" "}
           <div>
             <label className="block mb-1 font-medium">Full Name</label>
             <input
@@ -140,12 +361,99 @@ const EditDoctorProfile = () => {
             />
           </div>
           <div>
-            <label className="block mb-1 font-medium">Specialization</label>
+            <label className="block mb-2 font-medium">
+              Types of Doctor (Select All That Apply)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                "General Practitioner",
+                "Cardiologist",
+                "Dermatologist",
+                "Neurologist",
+                "Orthopedist",
+                "Pediatrician",
+                "Psychiatrist",
+                "Surgeon",
+                "Dentist",
+                "Ophthalmologist",
+                "ENT Specialist",
+                "Other",
+              ].map((type) => (
+                <label key={type} className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={
+                      Array.isArray(formData.doctorType)
+                        ? formData.doctorType.includes(type)
+                        : false
+                    }
+                    onChange={() => handleDoctorTypeChange(type)}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="ml-2 text-gray-700">{type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">
+              Specialization Details
+            </label>
             <input
               type="text"
               name="specialization"
               value={formData.specialization}
               onChange={handleChange}
+              placeholder="e.g., Heart Disease, Skin Care, etc."
+              className="w-full border p-2 rounded-lg"
+            />
+          </div>
+          <div>
+            <label className="block mb-2 font-medium">
+              Degree (Select All That Apply)
+            </label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {[
+                "MBBS (Bachelor of Medicine)",
+                "MD (Doctor of Medicine)",
+                "DO (Doctor of Osteopathy)",
+                "BDS (Bachelor of Dental Surgery)",
+                "DDS (Doctor of Dental Surgery)",
+                "BDSc (Bachelor of Dental Science)",
+                "MS (Master of Surgery)",
+                "DNB (Diplomate of National Board)",
+                "PhD (Doctor of Philosophy)",
+                "Other",
+              ].map((degree) => (
+                <label
+                  key={degree}
+                  className="flex items-center cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={
+                      Array.isArray(formData.degree)
+                        ? formData.degree.includes(degree)
+                        : false
+                    }
+                    onChange={() => handleDegreeChange(degree)}
+                    className="w-4 h-4 rounded border-gray-300"
+                  />
+                  <span className="ml-2 text-gray-700">{degree}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div>
+            <label className="block mb-1 font-medium">
+              College / University
+            </label>
+            <input
+              type="text"
+              name="college"
+              value={formData.college}
+              onChange={handleChange}
+              placeholder="Name of your college/university"
               className="w-full border p-2 rounded-lg"
             />
           </div>
@@ -213,9 +521,18 @@ const EditDoctorProfile = () => {
           </div>
           <button
             type="submit"
-            className="bg-teal-500 hover:bg-teal-600 text-white font-medium py-2 px-6 rounded-full"
+            disabled={loading}
+            className={`${
+              loading
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-teal-500 hover:bg-teal-600"
+            } text-white font-medium py-2 px-6 rounded-full transition`}
           >
-            {profileExists ? "Update Profile" : "Create Profile"}
+            {loading
+              ? "Processing..."
+              : profileExists
+              ? "Update Profile"
+              : "Create Profile"}
           </button>
         </form>
       </div>

@@ -27,7 +27,7 @@ const Footer = () => {
               rel="noopener noreferrer"
               className="font-semibold hover:text-[#007b8f] transition-colors"
             >
-              pixelpatriotsbd
+              novamatrix
             </a>
             &nbsp;©2025. All rights reserved.
           </p>

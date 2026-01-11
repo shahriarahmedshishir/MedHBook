@@ -10,19 +10,17 @@ import {
 import auth from "../Firebase/firebase.init";
 
 const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null); // includes Firebase + backend data
+  const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
-  // -------------------- SIGN UP --------------------
   const createUser = (email, password) => {
     setLoading(true);
     return createUserWithEmailAndPassword(auth, email, password);
   };
 
-  // -------------------- SIGN IN --------------------
   const signInUser = async (email, password) => {
     setLoading(true);
     try {
@@ -62,7 +60,6 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  // -------------------- SIGN OUT --------------------
   const signOutUser = () => {
     setLoading(true);
     setIsAdmin(false);
@@ -70,7 +67,6 @@ const AuthProvider = ({ children }) => {
     return signOut(auth).finally(() => setLoading(false));
   };
 
-  // -------------------- PASSWORD RESET --------------------
   const resetPassword = async (email) => {
     setLoading(true);
     try {
@@ -118,7 +114,14 @@ const AuthProvider = ({ children }) => {
         });
       } catch (err) {
         console.error("Error fetching user details:", err);
-        setUser(firebaseUser);
+        // Ensure user object has role field even on error
+        setUser({
+          email: firebaseUser.email,
+          name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
+          uid: null,
+          img: "https://i.pravatar.cc/40?img=3",
+          role: "user", // Default to user role if backend fetch fails
+        });
         setIsAdmin(false);
       } finally {
         setLoading(false);

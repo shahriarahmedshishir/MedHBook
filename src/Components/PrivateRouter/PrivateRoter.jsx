@@ -10,8 +10,18 @@ const PrivateRouter = ({ children }) => {
     return <div>Loading...</div>;
   }
 
-  if (!user || !isAdmin) {
+  if (!user) {
     return <Navigate to="/signin" state={{ from: location }} replace />;
+  }
+
+  // Check if user role is loaded
+  if (!user.role) {
+    return <div>Loading user data...</div>;
+  }
+
+  // Only allow doctors and admins
+  if (user.role !== "doctor" && user.role !== "admin" && !isAdmin) {
+    return <Navigate to="/patient" replace />;
   }
 
   return children;
