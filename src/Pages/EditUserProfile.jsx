@@ -10,7 +10,7 @@ import AuthContext from "../Components/Context/AuthContext";
 import axios from "axios";
 
 const EditUserProfile = () => {
-  const { user } = useContext(AuthContext);
+  const { user, refreshUser } = useContext(AuthContext);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -32,7 +32,7 @@ const EditUserProfile = () => {
       if (user?.email) {
         try {
           const response = await axios.get(
-            `http://localhost:3000/user/${user.email}`
+            `http://localhost:3000/user/${user.email}`,
           );
           const userData = response.data;
 
@@ -49,7 +49,13 @@ const EditUserProfile = () => {
           });
 
           if (userData.img) {
-            setImagePreview(`http://localhost:3000${userData.img}`);
+            const serverURL =
+              import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+            setImagePreview(
+              userData.img.startsWith("http")
+                ? userData.img
+                : `${serverURL}${userData.img}`,
+            );
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -99,7 +105,7 @@ const EditUserProfile = () => {
           imageFormData,
           {
             headers: { "Content-Type": "multipart/form-data" },
-          }
+          },
         );
         imageUrl = imageResponse.data.imagePath;
       }
@@ -118,6 +124,16 @@ const EditUserProfile = () => {
       };
 
       await axios.put(`http://localhost:3000/user/${user.email}`, updateData);
+
+      // Refresh user data in context to update the image everywhere
+      if (refreshUser) {
+        await refreshUser();
+      }
+
+      // Force a small delay to ensure database is updated
+      setTimeout(() => {
+        if (refreshUser) refreshUser();
+      }, 500);
 
       setStatus({
         type: "success",
@@ -149,8 +165,8 @@ const EditUserProfile = () => {
                 status.type === "success"
                   ? "bg-green-100 text-green-800"
                   : status.type === "error"
-                  ? "bg-red-100 text-red-800"
-                  : "bg-blue-100 text-blue-800"
+                    ? "bg-red-100 text-red-800"
+                    : "bg-blue-100 text-blue-800"
               }`}
             >
               {status.message}

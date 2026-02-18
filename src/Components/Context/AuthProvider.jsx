@@ -32,10 +32,34 @@ const AuthProvider = ({ children }) => {
       const adminFlag = !!idTokenResult.claims.admin;
       setIsAdmin(adminFlag);
 
+      // Determine role from Firebase claims
+      let userRole = "user"; // default
+      if (idTokenResult.claims.admin) {
+        userRole = "admin";
+      } else if (idTokenResult.claims.doctor) {
+        userRole = "doctor";
+      } else if (idTokenResult.claims.role) {
+        userRole = idTokenResult.claims.role;
+      }
+
       // Fetch backend user info
       const res = await fetch(`${serverURL}/user`);
       const data = await res.json();
       const matchedUser = data.find((u) => u.email === firebaseUser.email);
+
+      // Check if user is a doctor in doctorCollection
+      const doctorRes = await fetch(
+        `${serverURL}/doctor/${firebaseUser.email}`,
+      );
+      const doctorData = await doctorRes.json();
+      if (doctorData && !idTokenResult.claims.doctor) {
+        userRole = "doctor";
+      }
+
+      console.log("Firebase claims:", idTokenResult.claims);
+      console.log("Matched user:", matchedUser);
+      console.log("Doctor profile:", doctorData);
+      console.log("Final role:", userRole);
 
       setUser({
         email: firebaseUser.email,
@@ -44,11 +68,11 @@ const AuthProvider = ({ children }) => {
           firebaseUser.displayName ||
           firebaseUser.email.split("@")[0],
         uid: matchedUser?.uid || null,
-        img: matchedUser?.img
-          ? `${serverURL}${matchedUser.img}`
-          : "https://i.pravatar.cc/40?img=3",
-        role: matchedUser?.role || "user",
+        img: matchedUser?.img || null,
+        role: userRole,
       });
+
+      console.log("User logged in with img:", matchedUser?.img);
 
       return firebaseUser;
     } catch (error) {
@@ -80,6 +104,37 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  // Refresh user data from backend
+  const refreshUser = async () => {
+    const firebaseUser = auth.currentUser;
+    if (!firebaseUser?.email) {
+      console.log("refreshUser - no firebase user");
+      return;
+    }
+
+    try {
+      console.log("refreshUser - fetching data for:", firebaseUser.email);
+      const res = await fetch(`${serverURL}/user`);
+      const data = await res.json();
+      const matchedUser = data.find((u) => u.email === firebaseUser.email);
+
+      console.log("refreshUser - matchedUser:", matchedUser);
+      if (matchedUser) {
+        setUser((prev) => ({
+          ...prev,
+          name: matchedUser.name || prev.name,
+          img: matchedUser.img,
+          uid: matchedUser.uid ?? prev.uid,
+        }));
+        console.log("User data refreshed - new img:", matchedUser.img);
+      } else {
+        console.log("refreshUser - user not found in database");
+      }
+    } catch (err) {
+      console.error("Error refreshing user data:", err);
+    }
+  };
+
   // -------------------- AUTH STATE LISTENER --------------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
@@ -107,11 +162,11 @@ const AuthProvider = ({ children }) => {
             firebaseUser.displayName ||
             firebaseUser.email.split("@")[0],
           uid: matchedUser?.uid || null,
-          img: matchedUser?.img
-            ? `${serverURL}${matchedUser.img}`
-            : "https://i.pravatar.cc/40?img=3",
+          img: matchedUser?.img || null,
           role: matchedUser?.role || "user",
         });
+
+        console.log("Auth state changed - user img:", matchedUser?.img);
       } catch (err) {
         console.error("Error fetching user details:", err);
         // Ensure user object has role field even on error
@@ -119,7 +174,7 @@ const AuthProvider = ({ children }) => {
           email: firebaseUser.email,
           name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
           uid: null,
-          img: "https://i.pravatar.cc/40?img=3",
+          img: null,
           role: "user", // Default to user role if backend fetch fails
         });
         setIsAdmin(false);
@@ -139,6 +194,7 @@ const AuthProvider = ({ children }) => {
     signInUser,
     signOutUser,
     resetPassword,
+    refreshUser,
   };
 
   return (

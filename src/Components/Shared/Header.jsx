@@ -1,16 +1,64 @@
 import React, { useState, useContext, useRef, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
-import { Menu, ArrowLeft, MessageCircle, Search, BookOpen } from "lucide-react";
+import {
+  Menu,
+  ArrowLeft,
+  MessageCircle,
+  Search,
+  BookOpen,
+  Info,
+  User,
+  LogOut,
+  ChevronDown,
+} from "lucide-react";
 import AuthContext from "../Context/AuthContext";
 
+// Helper to get full image URL
+const getFullImageURL = (imgPath) => {
+  if (!imgPath) return null;
+  if (imgPath.startsWith("http")) return imgPath; // already full URL
+  const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+  return `${serverURL}${imgPath}`;
+};
+
 const Header = () => {
-  const { user, loading, signOutUser, isAdmin } = useContext(AuthContext);
+  const { user, loading, signOutUser, isAdmin, refreshUser } =
+    useContext(AuthContext);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
   const mobileRef = useRef(null);
+  const hasRefreshed = useRef(false); // Track if we've done initial refresh
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Construct user image URL same as edit profile pages
+  const userImageURL = user?.img
+    ? user.img.startsWith("http")
+      ? user.img
+      : `${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}${user.img}`
+    : null;
+
+  // Force refresh user data when user email is available (only once)
+  useEffect(() => {
+    if (user?.email && refreshUser && !hasRefreshed.current) {
+      console.log("Header - Initial refresh triggered for:", user.email);
+      refreshUser();
+      hasRefreshed.current = true;
+    }
+  }, [user?.email, refreshUser]); // Trigger when user email becomes available
+
+  // Debug: Log user image info
+  useEffect(() => {
+    console.log("Header - user object:", user);
+    console.log("Header - user.img:", user?.img);
+    console.log("Header - constructed URL:", userImageURL);
+  }, [user, userImageURL]);
+
+  const toggleDropdown = (e) => {
+    e.stopPropagation();
+    setDropdownOpen((prev) => !prev);
+  };
 
   const handleSignOut = async () => {
     try {
@@ -29,19 +77,35 @@ const Header = () => {
 
   useEffect(() => {
     const handleClickOutside = (e) => {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(e.target) &&
-        mobileRef.current &&
-        !mobileRef.current.contains(e.target)
-      ) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+    };
+
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (mobileRef.current && !mobileRef.current.contains(e.target)) {
         setMobileMenuOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+
+    if (mobileMenuOpen) {
+      document.addEventListener("click", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("click", handleClickOutside);
+    };
+  }, [mobileMenuOpen]);
 
   if (loading) return null;
 
@@ -50,21 +114,24 @@ const Header = () => {
   const isMainPage = mainPages.includes(location.pathname);
 
   return (
-    <header className="w-full bg-[#d1f6ff] shadow-md z-50">
+    <header className="w-full bg-gradient-to-r from-[#d1f6ff] via-white to-[#d1f6ff] shadow-lg z-50 border-b-2 border-[#67cffe]/20">
       <div className="max-w-6xl mx-auto flex items-center justify-between px-6 h-14 md:h-16">
         <div className="flex items-center space-x-4">
           {!isMainPage && (
             <button
               onClick={() => navigate(-1)}
-              className="p-1 rounded-full hover:bg-[#b2f0ff] transition"
+              className="p-2 rounded-full bg-white hover:bg-[#67cffe]/10 hover:shadow-md transition-all duration-300 hover:-translate-x-1 group"
               aria-label="Go back"
             >
-              <ArrowLeft className="w-6 h-6 text-gray-700" />
+              <ArrowLeft className="w-5 h-5 text-[#304d5d] group-hover:text-[#67cffe]" />
             </button>
           )}
 
           {/* Logo */}
-          <Link to="/" className="flex-shrink-0">
+          <Link
+            to="/"
+            className="flex-shrink-0 transform hover:scale-105 transition-transform duration-300"
+          >
             <img
               src="/logo-banner.png"
               alt="MedHBook Logo"
@@ -79,97 +146,167 @@ const Header = () => {
             {/* Navigation Links */}
             <Link
               to="/blogs"
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
             >
-              <BookOpen size={18} />
+              <BookOpen
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
               Blogs
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
             </Link>
             <Link
               to="/search-doctor"
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
             >
-              <Search size={18} />
+              <Search
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
               Find Doctor
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
             </Link>
             <Link
               to="/chat"
-              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-indigo-600 transition"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
             >
-              <MessageCircle size={18} />
+              <MessageCircle
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
               Chat
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+            </Link>
+            <Link
+              to="/about-us"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+            >
+              <Info
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
+              About Us
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
             </Link>
 
             {/* Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
-                onClick={() => setDropdownOpen((prev) => !prev)}
+                onClick={toggleDropdown}
+                className="flex items-center gap-2 group hover:bg-[#67cffe]/10 rounded-full pr-3 transition-all duration-300"
               >
-                <img
-                  src={user.img}
-                  alt="Profile"
-                  className="w-10 h-10 rounded-full border border-gray-300 object-cover hover:ring-2 hover:ring-[#7edff5] transition"
+                {userImageURL ? (
+                  <img
+                    src={userImageURL}
+                    alt="Profile"
+                    className="w-10 h-10 rounded-full border-2 border-[#67cffe] object-cover ring-2 ring-transparent group-hover:ring-[#67cffe]/30 transition-all duration-300"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full border-2 border-[#67cffe] bg-gradient-to-br from-[#67cffe] to-[#304d5d] flex items-center justify-center ring-2 ring-transparent group-hover:ring-[#67cffe]/30 transition-all duration-300">
+                    <span className="text-white text-sm font-bold">
+                      {user.name?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+                <ChevronDown
+                  className={`w-4 h-4 text-[#304d5d] transition-transform duration-300 ${
+                    dropdownOpen ? "rotate-180" : ""
+                  }`}
                 />
               </button>
 
-              <div
-                className={`absolute right-0 top-full mt-2 w-52 rounded-lg border border-gray-200 bg-white shadow-lg transform origin-top-right transition-all duration-200 ease-out ${
-                  dropdownOpen
-                    ? "opacity-100 translate-y-0 scale-100"
-                    : "opacity-0 -translate-y-2 scale-95 pointer-events-none"
-                }`}
-              >
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-medium text-gray-800">
-                    {user.name}
-                  </p>
-                  <p className="text-xs text-gray-500 break-all">
-                    UID: {user.uid}
-                  </p>
+              {dropdownOpen && (
+                <div className="absolute right-0 top-full mt-3 w-64 rounded-xl border-2 border-[#67cffe]/30 bg-white shadow-2xl overflow-hidden animate-slideDown z-50">
+                  {/* User Info Header */}
+                  <div className="px-4 py-4 bg-gradient-to-br from-[#67cffe]/20 via-[#67cffe]/10 to-transparent border-b-2 border-[#67cffe]/20">
+                    <div className="flex items-center gap-3">
+                      {userImageURL ? (
+                        <img
+                          src={userImageURL}
+                          alt="Profile"
+                          className="w-12 h-12 rounded-full border-2 border-[#67cffe] object-cover shadow-md"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full border-2 border-[#67cffe] bg-gradient-to-br from-[#67cffe] to-[#304d5d] flex items-center justify-center shadow-md">
+                          <span className="text-white text-lg font-bold">
+                            {user.name?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-bold text-[#304d5d] truncate">
+                          {user.name}
+                        </p>
+                        {user.email && (
+                          <p className="text-xs text-gray-600 truncate">
+                            {user.email}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500 truncate">
+                          UID: {user.uid}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Menu Items */}
+                  <div className="py-2">
+                    {(user.role === "doctor" ||
+                      user.role === "admin" ||
+                      isAdmin) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate("/edit-doctor-profile");
+                          setDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#304d5d] hover:bg-gradient-to-r hover:from-[#67cffe]/20 hover:to-[#67cffe]/5 transition-all duration-200 group"
+                      >
+                        <User className="w-4 h-4 text-[#67cffe] group-hover:scale-110 transition-transform duration-200" />
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">
+                          Edit Profile
+                        </span>
+                      </button>
+                    )}
+
+                    {user.role === "user" && !isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          navigate("/edit-user-profile");
+                          setDropdownOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#304d5d] hover:bg-gradient-to-r hover:from-[#67cffe]/20 hover:to-[#67cffe]/5 transition-all duration-200 group"
+                      >
+                        <User className="w-4 h-4 text-[#67cffe] group-hover:scale-110 transition-transform duration-200" />
+                        <span className="group-hover:translate-x-1 transition-transform duration-200">
+                          Edit Profile
+                        </span>
+                      </button>
+                    )}
+
+                    <div className="h-px bg-gradient-to-r from-transparent via-[#67cffe]/30 to-transparent my-2"></div>
+
+                    <button
+                      type="button"
+                      onClick={handleSignOut}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 transition-all duration-200 group"
+                    >
+                      <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform duration-200" />
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">
+                        Sign Out
+                      </span>
+                    </button>
+                  </div>
                 </div>
-
-                {(user.role === "doctor" ||
-                  user.role === "admin" ||
-                  isAdmin) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigate("/edit-doctor-profile");
-                      setDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#d1f6ff]/60 transition border-b border-gray-100"
-                  >
-                    Edit Profile
-                  </button>
-                )}
-
-                {user.role === "user" && !isAdmin && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      navigate("/edit-user-profile");
-                      setDropdownOpen(false);
-                    }}
-                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#d1f6ff]/60 transition border-b border-gray-100"
-                  >
-                    Edit Profile
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#d1f6ff]/60 transition"
-                >
-                  Sign Out
-                </button>
-              </div>
+              )}
             </div>
           </div>
         ) : (
           <Link
             to="/signin"
-            className="hidden md:block text-sm font-medium text-gray-700 hover:text-teal-600"
+            className="hidden md:block text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 px-4 py-2 rounded-lg hover:bg-[#67cffe]/10"
           >
             Sign In
           </Link>
@@ -179,7 +316,7 @@ const Header = () => {
         <div className="md:hidden relative" ref={mobileRef}>
           <button
             type="button"
-            className="text-gray-700"
+            className="text-[#304d5d] hover:text-[#67cffe] p-2 rounded-lg hover:bg-[#67cffe]/10 transition-all duration-300"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-label="Open menu"
           >
@@ -187,18 +324,26 @@ const Header = () => {
           </button>
 
           {mobileMenuOpen && user && (
-            <div className="absolute right-0 top-full mt-2 w-48 bg-white border border-gray-200 rounded-lg shadow-lg p-4 space-y-3 z-50">
-              <div className="flex items-center space-x-3 border-b border-gray-200 pb-3">
-                <img
-                  src={user.img}
-                  alt="Profile"
-                  className="w-10 h-10 rounded-full border border-gray-300 object-cover"
-                />
+            <div className="absolute right-0 top-full mt-3 w-56 bg-white/95 backdrop-blur-sm border-2 border-[#67cffe]/20 rounded-xl shadow-2xl p-4 space-y-2 z-50 animate-scaleIn">
+              <div className="flex items-center space-x-3 border-b-2 border-gray-200 pb-3 bg-gradient-to-r from-[#67cffe]/10 to-transparent p-2 rounded-lg">
+                {userImageURL ? (
+                  <img
+                    src={userImageURL}
+                    alt="Profile"
+                    className="w-10 h-10 rounded-full border-2 border-[#67cffe] object-cover"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-full border-2 border-[#67cffe] bg-gradient-to-br from-[#67cffe] to-[#304d5d] flex items-center justify-center">
+                    <span className="text-white text-sm font-bold">
+                      {user.name?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
                 <div>
-                  <p className="text-sm font-medium text-gray-800">
+                  <p className="text-sm font-semibold text-[#304d5d]">
                     {user.name}
                   </p>
-                  <p className="text-xs text-gray-500">UID: {user.uid}</p>
+                  <p className="text-xs text-gray-600">UID: {user.uid}</p>
                 </div>
               </div>
 
@@ -209,7 +354,7 @@ const Header = () => {
                     navigate("/edit-doctor-profile");
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#d1f6ff]/60 transition rounded"
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-[#304d5d] hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg"
                 >
                   Edit Profile
                 </button>
@@ -222,7 +367,7 @@ const Header = () => {
                     navigate("/edit-user-profile");
                     setMobileMenuOpen(false);
                   }}
-                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-[#d1f6ff]/60 transition rounded"
+                  className="w-full text-left px-4 py-2.5 text-sm font-medium text-[#304d5d] hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg"
                 >
                   Edit Profile
                 </button>
@@ -232,32 +377,41 @@ const Header = () => {
               <Link
                 to="/blogs"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-sm text-gray-700 px-4 py-2 hover:bg-[#d1f6ff]/60 transition rounded"
+                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
               >
-                <BookOpen size={16} />
+                <BookOpen
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
                 Blogs
               </Link>
               <Link
                 to="/search-doctor"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-sm text-gray-700 px-4 py-2 hover:bg-[#d1f6ff]/60 transition rounded"
+                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
               >
-                <Search size={16} />
+                <Search
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
                 Find Doctor
               </Link>
               <Link
                 to="/chat"
                 onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-sm text-gray-700 px-4 py-2 hover:bg-[#d1f6ff]/60 transition rounded"
+                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
               >
-                <MessageCircle size={16} />
+                <MessageCircle
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
                 Chat
               </Link>
 
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 border-t border-gray-200 hover:bg-[#d1f6ff]/60 transition"
+                className="w-full text-left px-4 py-2.5 text-sm font-medium text-red-600 border-t-2 border-gray-200 hover:bg-red-50 transition-all duration-300 rounded-lg mt-2"
               >
                 Sign Out
               </button>
@@ -265,11 +419,11 @@ const Header = () => {
           )}
 
           {!user && mobileMenuOpen && (
-            <div className="absolute right-0 top-full mt-2 w-40 bg-white border border-gray-200 rounded-lg shadow-lg p-2">
+            <div className="absolute right-0 top-full mt-3 w-40 bg-white/95 backdrop-blur-sm border-2 border-[#67cffe]/20 rounded-xl shadow-2xl p-2 animate-scaleIn">
               <Link
                 to="/signin"
                 onClick={() => setMobileMenuOpen(false)}
-                className="block text-sm text-gray-700 px-4 py-2 hover:bg-[#d1f6ff]/60 transition"
+                className="block text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg"
               >
                 Sign In
               </Link>

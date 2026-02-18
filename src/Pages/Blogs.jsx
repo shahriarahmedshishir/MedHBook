@@ -37,15 +37,15 @@ const Blogs = () => {
   const isDoctorOrAdmin = user?.role === "doctor" || user?.role === "admin";
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] py-12 px-4 relative overflow-hidden animate-fadeIn">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-12">
           <div>
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent mb-2">
               Medical Blogs
             </h1>
-            <p className="text-gray-600">
+            <p className="text-[#304d5d] font-medium">
               Latest updates and insights from our doctors
             </p>
           </div>
@@ -54,7 +54,7 @@ const Blogs = () => {
           {isDoctorOrAdmin && (
             <button
               onClick={() => navigate("/create-blog")}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-lg transition duration-300 flex items-center gap-2"
+              className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/30 text-white font-semibold px-6 py-3 rounded-full transition-all duration-300 flex items-center gap-2 hover:-translate-y-1"
             >
               <Plus size={20} />
               Create Blog
@@ -78,7 +78,7 @@ const Blogs = () => {
             {blogs.map((blog) => (
               <div
                 key={blog._id}
-                className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition duration-300 transform hover:-translate-y-2 cursor-pointer"
+                className="bg-white rounded-2xl shadow-lg overflow-hidden hover:shadow-2xl hover:shadow-[#67cffe]/20 transition-all duration-300 transform hover:-translate-y-2 cursor-pointer border-2 border-transparent hover:border-[#67cffe]/30 animate-scaleIn"
                 onClick={() => navigate(`/blogs/${blog._id}`)}
               >
                 {/* Blog Image */}
@@ -89,7 +89,7 @@ const Blogs = () => {
                     className="w-full h-48 object-cover"
                   />
                 ) : (
-                  <div className="w-full h-48 bg-gradient-to-r from-indigo-400 to-blue-500 flex items-center justify-center">
+                  <div className="w-full h-48 bg-gradient-to-r from-[#304d5d] to-[#67cffe] flex items-center justify-center">
                     <span className="text-white text-6xl font-bold">
                       {blog.title.charAt(0).toUpperCase()}
                     </span>
@@ -98,7 +98,7 @@ const Blogs = () => {
 
                 {/* Blog Content */}
                 <div className="p-6">
-                  <h2 className="text-xl font-bold text-gray-800 mb-3 line-clamp-2">
+                  <h2 className="text-xl font-bold text-[#304d5d] mb-3 line-clamp-2 hover:text-[#67cffe] transition-colors duration-300">
                     {blog.title}
                   </h2>
 

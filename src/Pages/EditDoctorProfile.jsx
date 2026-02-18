@@ -3,7 +3,7 @@ import axios from "axios";
 import AuthContext from "../Components/Context/AuthContext";
 
 const EditDoctorProfile = () => {
-  const { user } = useContext(AuthContext);
+  const { user, refreshUser } = useContext(AuthContext);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -32,51 +32,95 @@ const EditDoctorProfile = () => {
   useEffect(() => {
     if (!user?.email) return;
 
-    axios
-      .get(`http://localhost:3000/doctor/${user.email}`)
-      .then((res) => {
-        const data = res.data;
+    const fetchData = async () => {
+      try {
+        // Fetch doctor profile data
+        const doctorRes = await axios.get(
+          `http://localhost:3000/doctor/${user.email}`,
+        );
+        const doctorData = doctorRes.data;
+
+        // Fetch user data for image (source of truth)
+        const userRes = await axios.get(
+          `http://localhost:3000/user/${user.email}`,
+        );
+        const userData = userRes.data;
+
         setFormData({
           name: user.name,
           email: user.email,
-          phone: data.phone || "",
-          address: data.address || "",
-          specialization: data.specialization || "",
-          licenseNumber: data.licenseNumber || "",
-          yearsOfExperience: data.yearsOfExperience || "",
-          education: data.education || "",
-          college: data.college || "",
-          degree: data.degree || "",
-          doctorType: data.doctorType || "",
-          certifications: data.certifications || [],
-          bio: data.bio || "",
+          phone: doctorData.phone || "",
+          address: doctorData.address || "",
+          specialization: doctorData.specialization || "",
+          licenseNumber: doctorData.licenseNumber || "",
+          yearsOfExperience: doctorData.yearsOfExperience || "",
+          education: doctorData.education || "",
+          college: doctorData.college || "",
+          degree: doctorData.degree || "",
+          doctorType: doctorData.doctorType || "",
+          certifications: doctorData.certifications || [],
+          bio: doctorData.bio || "",
           img: null,
-          existingImg: data.img || "", // Store existing image path
+          existingImg: userData.img || "", // Use image from userCollection
           uid: user.uid, // always add uid
         });
-        if (data.img) {
+
+        // Set preview from fresh userCollection data
+        if (userData.img) {
           const serverURL =
             import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
-          setImagePreview(
-            data.img.startsWith("http") ? data.img : `${serverURL}${data.img}`
-          );
+          const fullImageURL = userData.img.startsWith("http")
+            ? userData.img
+            : `${serverURL}${userData.img}`;
+          console.log("EditDoctorProfile - userData.img:", userData.img);
+          console.log("EditDoctorProfile - fullImageURL:", fullImageURL);
+          setImagePreview(fullImageURL);
+        } else {
+          console.log("EditDoctorProfile - No image found in userData");
+          setImagePreview(null);
         }
         setProfileExists(true);
-      })
-      .catch(() => {
+      } catch (error) {
         // No profile → create mode
-        setFormData((prev) => ({
-          ...prev,
-          name: user.name || "",
-          email: user.email || "",
-          img: null,
-          existingImg: "",
-          uid: user.uid || "", // set uid for new profile
-        }));
-        setImagePreview(null);
+        console.log("No doctor profile found, creating new:", error);
+
+        // Still fetch user data for image
+        try {
+          const userRes = await axios.get(
+            `http://localhost:3000/user/${user.email}`,
+          );
+          const userData = userRes.data;
+
+          setFormData((prev) => ({
+            ...prev,
+            name: user.name || "",
+            email: user.email || "",
+            img: null,
+            existingImg: userData.img || "", // Use image from userCollection
+            uid: user.uid || "", // set uid for new profile
+          }));
+
+          if (userData.img) {
+            const serverURL =
+              import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+            setImagePreview(
+              userData.img.startsWith("http")
+                ? userData.img
+                : `${serverURL}${userData.img}`,
+            );
+          } else {
+            setImagePreview(null);
+          }
+        } catch (userError) {
+          setImagePreview(null);
+        }
+
         setProfileExists(false);
-      });
-  }, [user]);
+      }
+    };
+
+    fetchData();
+  }, [user?.email]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -122,11 +166,16 @@ const EditDoctorProfile = () => {
     setLoading(true);
     setStatus({ type: null, message: "" });
 
+    console.log("=== FORM SUBMIT STARTED ===");
+    console.log("formData.img:", formData.img);
+    console.log("formData.existingImg:", formData.existingImg);
+
     try {
       let imgPath = null;
 
       // Upload image if selected
       if (formData.img && formData.img instanceof File) {
+        console.log("Uploading new image file...");
         const imageFormData = new FormData();
         imageFormData.append("image", formData.img);
 
@@ -134,15 +183,38 @@ const EditDoctorProfile = () => {
           const uploadRes = await axios.post(
             `http://localhost:3000/upload-doctor-image`,
             imageFormData,
-            { headers: { "Content-Type": "multipart/form-data" } }
+            { headers: { "Content-Type": "multipart/form-data" } },
           );
           imgPath = uploadRes.data.imagePath;
+          console.log("✅ Image uploaded successfully:", imgPath);
+
+          // CRITICAL: Update userCollection IMMEDIATELY with the new image
+          // This is the source of truth for Header/DoctorHome
+          try {
+            console.log("Updating userCollection with new image:", imgPath);
+            const userUpdateRes = await axios.put(
+              `http://localhost:3000/user/${user.email}`,
+              { img: imgPath },
+            );
+            console.log("✅ User collection updated:", userUpdateRes.data);
+          } catch (userUpdateErr) {
+            console.error(
+              "❌ Failed to update user collection:",
+              userUpdateErr,
+            );
+            console.error("Error details:", userUpdateErr.response?.data);
+          }
         } catch (uploadErr) {
-          console.error("Image upload error:", uploadErr);
+          console.error("❌ Image upload error:", uploadErr);
           setStatus({ type: "error", message: "Failed to upload image" });
           setLoading(false);
           return;
         }
+      } else {
+        console.log(
+          "No new image to upload, using existing:",
+          formData.existingImg,
+        );
       }
 
       const payload = {
@@ -160,8 +232,8 @@ const EditDoctorProfile = () => {
         doctorType: Array.isArray(formData.doctorType)
           ? formData.doctorType
           : formData.doctorType
-          ? [formData.doctorType]
-          : [],
+            ? [formData.doctorType]
+            : [],
         certifications: Array.isArray(formData.certifications)
           ? formData.certifications
           : [],
@@ -171,16 +243,22 @@ const EditDoctorProfile = () => {
       // Only add img if a new one was uploaded, otherwise keep existing
       if (imgPath) {
         payload.img = imgPath;
+        console.log("✅ Using newly uploaded image:", imgPath);
       } else if (formData.existingImg) {
         // Keep existing image path if no new image uploaded
         payload.img = formData.existingImg;
+        console.log("✅ Keeping existing image:", formData.existingImg);
+      } else {
+        console.log("⚠️ No image in payload");
       }
+
+      console.log("Doctor payload:", payload);
 
       if (profileExists) {
         try {
           const res = await axios.put(
             `http://localhost:3000/doctor/${user.email}`,
-            payload
+            payload,
           );
           console.log("Profile updated:", res.data);
           setStatus({
@@ -193,7 +271,7 @@ const EditDoctorProfile = () => {
             console.log("Doctor not found, creating new profile...");
             const res = await axios.post(
               `http://localhost:3000/doctor`,
-              payload
+              payload,
             );
             console.log("Profile created:", res.data);
             setStatus({
@@ -223,7 +301,7 @@ const EditDoctorProfile = () => {
             console.log("Doctor already exists, updating profile...");
             const res = await axios.put(
               `http://localhost:3000/doctor/${user.email}`,
-              payload
+              payload,
             );
             console.log("Profile updated:", res.data);
             setStatus({
@@ -236,6 +314,22 @@ const EditDoctorProfile = () => {
           }
         }
       }
+
+      console.log("Calling refreshUser...");
+      // Refresh user data in context to update the image everywhere
+      if (refreshUser) {
+        await refreshUser();
+        console.log("✅ refreshUser completed");
+      }
+
+      // Force a small delay to ensure database is updated
+      setTimeout(() => {
+        console.log("Secondary refresh triggered");
+        if (refreshUser) refreshUser();
+      }, 500);
+
+      console.log("=== FORM SUBMIT COMPLETED ===");
+
       setLoading(false);
     } catch (err) {
       console.error("Error:", err);
@@ -252,6 +346,11 @@ const EditDoctorProfile = () => {
           message: "Profile saved successfully!",
         });
         setProfileExists(true);
+
+        // Refresh user data even on sync issues
+        if (refreshUser) {
+          await refreshUser();
+        }
       } else {
         const errorMessage =
           err.response?.data?.error ||
@@ -531,8 +630,8 @@ const EditDoctorProfile = () => {
             {loading
               ? "Processing..."
               : profileExists
-              ? "Update Profile"
-              : "Create Profile"}
+                ? "Update Profile"
+                : "Create Profile"}
           </button>
         </form>
       </div>

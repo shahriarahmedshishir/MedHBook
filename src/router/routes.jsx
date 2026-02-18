@@ -20,6 +20,7 @@ import Chat from "../Pages/Chat";
 import Blogs from "../Pages/Blogs";
 import CreateBlog from "../Pages/CreateBlog";
 import BlogDetail from "../Pages/BlogDetail";
+import AboutUs from "../Pages/AboutUs";
 
 // Example of a fake auth check (replace with your real one)
 const isAuthenticated = false; // later, you’ll use Firebase or context here
@@ -75,6 +76,14 @@ const routes = createBrowserRouter([
     element: (
       <PublicLayout>
         <BlogDetail />
+      </PublicLayout>
+    ),
+  },
+  {
+    path: "/about-us",
+    element: (
+      <PublicLayout>
+        <AboutUs />
       </PublicLayout>
     ),
   },

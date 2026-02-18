@@ -2,7 +2,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Mail, Phone, Award, MapPin, FileText } from "lucide-react";
 
 const getFullImageURL = (imgPath) => {
-  if (!imgPath) return "https://i.pravatar.cc/150";
+  if (!imgPath) return null;
   if (imgPath.startsWith("http")) return imgPath;
   return `${
     import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
@@ -51,14 +51,11 @@ const DoctorProfile = () => {
           <div className="px-6 pb-6">
             {/* Profile Image */}
             <div className="-mt-16 mb-6">
-              {doctor.img ? (
+              {doctor.img && getFullImageURL(doctor.img) ? (
                 <img
                   src={getFullImageURL(doctor.img)}
                   alt={doctor.name}
                   className="w-32 h-32 rounded-full border-4 border-white object-cover shadow-lg"
-                  onError={(e) => {
-                    e.target.src = "https://i.pravatar.cc/150";
-                  }}
                 />
               ) : (
                 <div className="w-32 h-32 rounded-full border-4 border-white bg-gray-300 flex items-center justify-center shadow-lg">

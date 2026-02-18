@@ -29,7 +29,7 @@ app.use(
   cors({
     origin: ["http://localhost:5173"],
     credentials: true,
-  })
+  }),
 );
 app.use(express.json());
 
@@ -120,11 +120,11 @@ app.get("/user", async (req, res) => {
 
     // If role is "patient" or "user", exclude doctors/admins
     if (role === "patient" || role === "user") {
-      // Only return users who have role "user" or don't have doctorCollection entry
       filter.role = "user";
     } else if (role) {
       filter.role = role;
     }
+    // When no role is specified, return all users (needed for login)
 
     const users = await userCollection
       .find(filter, {
@@ -171,7 +171,7 @@ app.post("/doctor", async (req, res) => {
     // Update user role to "doctor" in userCollection
     await userCollection.updateOne(
       { email: email },
-      { $set: { role: "doctor" } }
+      { $set: { role: "doctor" } },
     );
 
     res.json({ message: "Doctor profile created", doctor: req.body });
@@ -195,24 +195,44 @@ app.get("/doctor/:email", async (req, res) => {
 // 🔵 SEARCH doctors (GET)
 app.get("/search/doctors", async (req, res) => {
   try {
-    const { name, specialty, email } = req.query;
+    const { name, specialty } = req.query;
     let filter = {};
 
     if (name) {
       filter.name = { $regex: name, $options: "i" }; // Case-insensitive search
     }
+
     if (specialty) {
-      filter.specialty = { $regex: specialty, $options: "i" };
-    }
-    if (email) {
-      filter.email = { $regex: email, $options: "i" };
+      // Check if multiple specialties are provided (comma-separated)
+      if (specialty.includes(",")) {
+        const specialties = specialty.split(",").map((s) => s.trim());
+        // Match any of the specialties using $or
+        filter.$or = specialties.map((s) => ({
+          $or: [
+            { specialty: { $regex: s, $options: "i" } },
+            { doctorType: { $regex: s, $options: "i" } },
+            { specialization: { $regex: s, $options: "i" } },
+          ],
+        }));
+      } else {
+        // Single specialty search - search in specialty, doctorType, and specialization fields
+        filter.$or = [
+          { specialty: { $regex: specialty, $options: "i" } },
+          { doctorType: { $regex: specialty, $options: "i" } },
+          { specialization: { $regex: specialty, $options: "i" } },
+        ];
+      }
     }
 
     // Only return from doctorCollection (not userCollection)
     const doctors = await doctorCollection.find(filter).toArray();
     console.log(
       "Search results:",
-      doctors.map((d) => ({ name: d.name, img: d.img }))
+      doctors.map((d) => ({
+        name: d.name,
+        specialty: d.specialty,
+        doctorType: d.doctorType,
+      })),
     );
     res.json(doctors);
   } catch (err) {
@@ -226,7 +246,7 @@ app.put("/doctor/:email", async (req, res) => {
     const updated = await doctorCollection.findOneAndUpdate(
       { email: req.params.email },
       { $set: req.body },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
     if (!updated.value) {
@@ -237,7 +257,7 @@ app.put("/doctor/:email", async (req, res) => {
     if (req.body.img) {
       await userCollection.updateOne(
         { email: req.params.email },
-        { $set: { img: req.body.img } }
+        { $set: { img: req.body.img } },
       );
     }
 
@@ -289,7 +309,7 @@ app.post("/sync-doctor-images", async (req, res) => {
       if (user && user.img) {
         await doctorCollection.updateOne(
           { email: doctor.email },
-          { $set: { img: user.img } }
+          { $set: { img: user.img } },
         );
         synced++;
       }
@@ -312,7 +332,7 @@ app.put("/user/:email", async (req, res) => {
 
     const result = await userCollection.updateOne(
       { email },
-      { $set: updateData }
+      { $set: updateData },
     );
 
     if (result.matchedCount === 0) {
@@ -660,7 +680,7 @@ app.put("/messages/:id/read", async (req, res) => {
     const updated = await messageCollection.findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: { read: true } },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
     if (!updated.value) {
@@ -757,7 +777,7 @@ app.put("/blogs/:id", upload.single("image"), async (req, res) => {
     const updated = await blogCollection.findOneAndUpdate(
       { _id: new ObjectId(id) },
       { $set: updateData },
-      { returnDocument: "after" }
+      { returnDocument: "after" },
     );
 
     if (!updated.value) {

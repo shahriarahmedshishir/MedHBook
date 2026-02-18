@@ -194,7 +194,7 @@ const Chat = () => {
   const isUserOnline = onlineUsers.includes(selectedConversation?.otherEmail);
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff]">
       {/* Sidebar */}
       <div
         className={`${
@@ -202,8 +202,8 @@ const Chat = () => {
         } md:flex w-full md:w-80 bg-white border-r border-gray-200 flex-col`}
       >
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">Messages</h1>
+        <div className="p-4 border-b-2 border-[#67cffe]/20 bg-gradient-to-r from-[#67cffe]/5 to-transparent">
+          <h1 className="text-2xl font-bold text-[#304d5d] mb-4">Messages</h1>
 
           {/* Search */}
           <div className="relative mb-4">
@@ -212,7 +212,7 @@ const Chat = () => {
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+              className="w-full px-4 py-2 pl-10 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
             />
             <SearchIcon
               className="absolute left-3 top-2.5 text-gray-400"
@@ -223,7 +223,7 @@ const Chat = () => {
           {/* New Chat Button */}
           <button
             onClick={() => setShowNewChatModal(true)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg transition duration-300 flex items-center justify-center gap-2"
+            className="w-full bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/30 text-white font-semibold py-2 rounded-full transition-all duration-300 flex items-center justify-center gap-2 hover:-translate-y-1"
           >
             <Plus size={20} />
             New Chat
@@ -244,15 +244,15 @@ const Chat = () => {
               <button
                 key={conv.otherEmail}
                 onClick={() => handleSelectConversation(conv)}
-                className={`w-full p-4 border-b border-gray-100 text-left hover:bg-gray-50 transition ${
+                className={`w-full p-4 border-b border-gray-100 text-left hover:bg-[#67cffe]/10 transition ${
                   selectedConversation?.otherEmail === conv.otherEmail
-                    ? "bg-indigo-50 border-l-4 border-indigo-600"
+                    ? "bg-gradient-to-r from-[#67cffe]/20 to-transparent border-l-4 border-[#67cffe]"
                     : ""
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-gray-800">
+                    <h3 className="font-semibold text-[#304d5d]">
                       {conv.otherName}
                     </h3>
                     {onlineUsers.includes(conv.otherEmail) && (
@@ -286,13 +286,13 @@ const Chat = () => {
         {selectedConversation ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-indigo-500 to-blue-500">
+            <div className="p-4 border-b-2 border-[#67cffe]/30 bg-gradient-to-r from-[#304d5d] to-[#67cffe] shadow-lg">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   {/* Back button for mobile */}
                   <button
                     onClick={handleBackToList}
-                    className="md:hidden p-1 hover:bg-indigo-600 rounded-full transition"
+                    className="md:hidden p-1 hover:bg-white/20 rounded-full transition"
                   >
                     <ArrowLeft className="w-6 h-6 text-white" />
                   </button>
@@ -300,7 +300,7 @@ const Chat = () => {
                     <h2 className="text-xl font-bold text-white">
                       {selectedConversation.otherName}
                     </h2>
-                    <p className="text-sm text-indigo-100">
+                    <p className="text-sm text-white/80">
                       {isUserOnline ? (
                         <span className="flex items-center gap-1">
                           <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
@@ -332,10 +332,10 @@ const Chat = () => {
                     }`}
                   >
                     <div
-                      className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg ${
+                      className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg shadow-md ${
                         msg.senderEmail === user.email
-                          ? "bg-indigo-600 text-white rounded-br-none"
-                          : "bg-gray-200 text-gray-800 rounded-bl-none"
+                          ? "bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white rounded-br-none"
+                          : "bg-white text-gray-800 rounded-bl-none border-2 border-gray-100"
                       }`}
                     >
                       <div className="flex items-center gap-2">
@@ -382,13 +382,13 @@ const Chat = () => {
                   value={messageInput}
                   onChange={(e) => handleTyping(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600"
+                  className="flex-1 px-4 py-2 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
                   disabled={loading}
                 />
                 <button
                   type="submit"
                   disabled={loading || !messageInput.trim()}
-                  className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-lg transition duration-300 flex items-center gap-2"
+                  className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-full transition-all duration-300 flex items-center gap-2"
                 >
                   <Send size={18} />
                 </button>
@@ -410,8 +410,8 @@ const Chat = () => {
       {/* New Chat Modal */}
       {showNewChatModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[80vh] md:max-h-96 flex flex-col">
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[80vh] md:max-h-96 flex flex-col shadow-2xl border-2 border-[#67cffe]/20">
+            <h2 className="text-2xl font-bold text-[#304d5d] mb-4">
               Start a New Chat
             </h2>
 
@@ -424,7 +424,7 @@ const Chat = () => {
                 setDoctorSearch(e.target.value);
                 searchDoctors(e.target.value);
               }}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 mb-4"
+              className="w-full px-4 py-2 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe] mb-4"
             />
 
             {/* Doctor List */}
@@ -439,9 +439,11 @@ const Chat = () => {
                 <button
                   key={doctor.email}
                   onClick={() => startNewChat(doctor)}
-                  className="w-full p-4 border border-gray-200 rounded-lg hover:bg-indigo-50 transition text-left"
+                  className="w-full p-4 border-2 border-[#67cffe]/20 rounded-lg hover:bg-[#67cffe]/10 hover:border-[#67cffe] transition-all text-left"
                 >
-                  <h3 className="font-semibold text-gray-800">{doctor.name}</h3>
+                  <h3 className="font-semibold text-[#304d5d]">
+                    {doctor.name}
+                  </h3>
                   {doctor.specialty && (
                     <p className="text-sm text-gray-600">{doctor.specialty}</p>
                   )}
@@ -457,7 +459,7 @@ const Chat = () => {
                 setDoctorSearch("");
                 setDoctorSearchResults([]);
               }}
-              className="w-full mt-4 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition"
+              className="w-full mt-4 bg-gray-200 hover:bg-gray-300 text-[#304d5d] font-semibold py-2 rounded-lg transition-all duration-300"
             >
               Cancel
             </button>

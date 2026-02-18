@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { FileText, Pill, Activity } from "lucide-react";
 
 const getFullImageURL = (imgPath) => {
-  if (!imgPath) return "https://i.pravatar.cc/100";
+  if (!imgPath) return null;
   return `${
     import.meta.env.VITE_SERVER_URL || "http://localhost:3000"
   }${imgPath}`;
@@ -32,7 +32,7 @@ const PatientDetails = () => {
           const res = await fetch(url);
           const data = await res.json();
           return data.sort(
-            (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+            (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
           );
         };
 
@@ -45,18 +45,18 @@ const PatientDetails = () => {
 
         setPrescriptions(
           await fetchAndSort(
-            `${base}/prescriptions?${uid ? `uid=${uid}` : `email=${email}`}`
-          )
+            `${base}/prescriptions?${uid ? `uid=${uid}` : `email=${email}`}`,
+          ),
         );
         setReports(
           await fetchAndSort(
-            `${base}/reports?${uid ? `uid=${uid}` : `email=${email}`}`
-          )
+            `${base}/reports?${uid ? `uid=${uid}` : `email=${email}`}`,
+          ),
         );
         setXrays(
           await fetchAndSort(
-            `${base}/xrays?${uid ? `uid=${uid}` : `email=${email}`}`
-          )
+            `${base}/xrays?${uid ? `uid=${uid}` : `email=${email}`}`,
+          ),
         );
       } catch (err) {
         console.error(err);
@@ -171,16 +171,16 @@ const PatientDetails = () => {
                         parseFloat(patientData.diabeticLevel) >= 6.5
                           ? "text-red-600"
                           : parseFloat(patientData.diabeticLevel) >= 5.7
-                          ? "text-orange-600"
-                          : "text-green-600"
+                            ? "text-orange-600"
+                            : "text-green-600"
                       }`}
                     >
                       {patientData.diabeticLevel}%
                       {parseFloat(patientData.diabeticLevel) >= 6.5
                         ? " (Diabetic)"
                         : parseFloat(patientData.diabeticLevel) >= 5.7
-                        ? " (Pre-diabetic)"
-                        : " (Normal)"}
+                          ? " (Pre-diabetic)"
+                          : " (Normal)"}
                     </span>
                   ) : (
                     <span className="text-gray-400">Not recorded</span>
