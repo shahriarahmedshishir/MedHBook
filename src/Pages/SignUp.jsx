@@ -22,6 +22,7 @@ const SignUp = () => {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [verificationSent, setVerificationSent] = useState(false);
 
   // Handle text inputs
   const handleChange = (e) => {
@@ -55,8 +56,13 @@ const SignUp = () => {
     setLoading(true);
 
     try {
-      // ✅ 1. Create user in Firebase Authentication
-      await createUser(email, password);
+      // ✅ 1. Create user in Firebase Authentication (verification email sent automatically)
+      const userCredential = await createUser(email, password);
+
+      console.log("✅ Firebase user created:", userCredential.user.email);
+      console.log("📧 Verification email sent to:", email);
+
+      setVerificationSent(true);
 
       // ✅ 2. Prepare form data for upload using FormData
       // This is necessary to send files correctly
@@ -83,7 +89,8 @@ const SignUp = () => {
       console.log("✅ Saved to MongoDB:", data);
 
       setSuccess(true);
-      setTimeout(() => navigate("/signin"), 2000);
+      // Don't auto-redirect, let user see verification message
+      // setTimeout(() => navigate("/signin"), 5000);
     } catch (err) {
       console.error("❌ Registration failed:", err.message);
       setError(err.message);
@@ -233,10 +240,28 @@ const SignUp = () => {
               {error}
             </p>
           )}
-          {success && (
-            <p className="text-green-600 text-center text-sm bg-green-50 p-3 rounded-lg border border-green-200 animate-fadeIn">
-              Registration successful! Redirecting...
-            </p>
+          {success && verificationSent && (
+            <div className="text-green-600 text-center text-sm bg-green-50 p-4 rounded-lg border border-green-200 animate-fadeIn space-y-2">
+              <p className="font-semibold">✅ Account created successfully!</p>
+              <p className="text-xs">
+                📧 A verification email has been sent to{" "}
+                <strong>{formData.email}</strong>
+              </p>
+              <p className="text-xs">
+                Please verify your email before signing in.
+              </p>
+              <div className="text-xs text-gray-600 mt-2 space-y-1">
+                <p>📌 Check your spam/junk folder if you don't see it</p>
+                <p>⏱️ Email may take a few minutes to arrive</p>
+                <p>📬 Look for an email from Firebase</p>
+              </div>
+              <Link
+                to="/signin"
+                className="inline-block mt-3 px-4 py-2 bg-[#67cffe] text-white rounded-lg hover:bg-[#304d5d] transition-colors duration-300 font-medium"
+              >
+                Go to Sign In
+              </Link>
+            </div>
           )}
         </form>
 

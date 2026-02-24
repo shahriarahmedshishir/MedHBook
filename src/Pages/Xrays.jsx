@@ -42,7 +42,7 @@ const Xrays = () => {
 
   const toggleSelectForDelete = (id) => {
     setSelectedForDelete((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -52,8 +52,12 @@ const Xrays = () => {
 
   const handleRemoveStoredFile = async (id) => {
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`${serverURL}/xrays/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!res.ok) throw new Error("Failed to delete Xarys");
       setReports((prev) => prev.filter((f) => f._id !== id));
@@ -106,8 +110,12 @@ const Xrays = () => {
 
     setUploading(true);
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`${serverURL}/xrays`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
       if (!res.ok) throw new Error("Upload failed");
@@ -128,8 +136,14 @@ const Xrays = () => {
     if (!user?.email) return;
     const fetchReports = async () => {
       try {
+        const token = localStorage.getItem("authToken");
         const res = await fetch(
-          `${serverURL}/xrays?email=${encodeURIComponent(user.email)}`
+          `${serverURL}/xrays?email=${encodeURIComponent(user.email)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
         const data = await res.json();
         setReports(Array.isArray(data) ? data : []);

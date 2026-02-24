@@ -10,6 +10,8 @@ import {
   User,
   LogOut,
   ChevronDown,
+  Home,
+  CalendarCheck,
 } from "lucide-react";
 import AuthContext from "../Context/AuthContext";
 
@@ -26,6 +28,7 @@ const Header = () => {
     useContext(AuthContext);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [imageError, setImageError] = useState(false);
   const dropdownRef = useRef(null);
   const mobileRef = useRef(null);
   const hasRefreshed = useRef(false); // Track if we've done initial refresh
@@ -53,7 +56,16 @@ const Header = () => {
     console.log("Header - user object:", user);
     console.log("Header - user.img:", user?.img);
     console.log("Header - constructed URL:", userImageURL);
+    // Reset image error state when user changes
+    setImageError(false);
   }, [user, userImageURL]);
+
+  const handleImageError = (e) => {
+    console.error("Failed to load image:", userImageURL);
+    console.error("Image error event:", e);
+    // Show fallback instead
+    setImageError(true);
+  };
 
   const toggleDropdown = (e) => {
     e.stopPropagation();
@@ -145,6 +157,17 @@ const Header = () => {
           <div className="hidden md:flex items-center space-x-6">
             {/* Navigation Links */}
             <Link
+              to="/"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+            >
+              <Home
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
+              Home
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+            </Link>
+            <Link
               to="/blogs"
               className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
             >
@@ -177,17 +200,48 @@ const Header = () => {
               Chat
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
             </Link>
-            <Link
-              to="/about-us"
-              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
-            >
-              <Info
-                size={18}
-                className="group-hover:scale-110 transition-transform duration-300"
-              />
-              About Us
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
-            </Link>
+            {/* Patient Appointments - Only visible to users */}
+            {user?.role === "user" && (
+              <Link
+                to="/patient/appointments"
+                className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+              >
+                <CalendarCheck
+                  size={18}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
+                My Appointments
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+              </Link>
+            )}
+            {/* Doctor Appointments - Only visible to doctors */}
+            {(user?.role === "doctor" || isAdmin) && (
+              <Link
+                to="/doctor/appointments"
+                className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+              >
+                <CalendarCheck
+                  size={18}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
+                Appointments
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+              </Link>
+            )}
+            {/* About Us - Only visible to doctors and admins */}
+            {(user?.role === "doctor" || user?.role === "admin" || isAdmin) && (
+              <Link
+                to="/about-us"
+                className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+              >
+                <Info
+                  size={18}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
+                About Us
+                <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+              </Link>
+            )}
 
             {/* Profile Dropdown */}
             <div className="relative" ref={dropdownRef}>
@@ -196,10 +250,11 @@ const Header = () => {
                 onClick={toggleDropdown}
                 className="flex items-center gap-2 group hover:bg-[#67cffe]/10 rounded-full pr-3 transition-all duration-300"
               >
-                {userImageURL ? (
+                {userImageURL && !imageError ? (
                   <img
                     src={userImageURL}
                     alt="Profile"
+                    onError={handleImageError}
                     className="w-10 h-10 rounded-full border-2 border-[#67cffe] object-cover ring-2 ring-transparent group-hover:ring-[#67cffe]/30 transition-all duration-300"
                   />
                 ) : (
@@ -221,10 +276,11 @@ const Header = () => {
                   {/* User Info Header */}
                   <div className="px-4 py-4 bg-gradient-to-br from-[#67cffe]/20 via-[#67cffe]/10 to-transparent border-b-2 border-[#67cffe]/20">
                     <div className="flex items-center gap-3">
-                      {userImageURL ? (
+                      {userImageURL && !imageError ? (
                         <img
                           src={userImageURL}
                           alt="Profile"
+                          onError={handleImageError}
                           className="w-12 h-12 rounded-full border-2 border-[#67cffe] object-cover shadow-md"
                         />
                       ) : (
@@ -326,10 +382,11 @@ const Header = () => {
           {mobileMenuOpen && user && (
             <div className="absolute right-0 top-full mt-3 w-56 bg-white/95 backdrop-blur-sm border-2 border-[#67cffe]/20 rounded-xl shadow-2xl p-4 space-y-2 z-50 animate-scaleIn">
               <div className="flex items-center space-x-3 border-b-2 border-gray-200 pb-3 bg-gradient-to-r from-[#67cffe]/10 to-transparent p-2 rounded-lg">
-                {userImageURL ? (
+                {userImageURL && !imageError ? (
                   <img
                     src={userImageURL}
                     alt="Profile"
+                    onError={handleImageError}
                     className="w-10 h-10 rounded-full border-2 border-[#67cffe] object-cover"
                   />
                 ) : (
@@ -375,6 +432,45 @@ const Header = () => {
 
               {/* Mobile Navigation Links */}
               <Link
+                to="/"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
+              >
+                <Home
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
+                Home
+              </Link>
+              {/* Patient Appointments - Only visible to users (mobile) */}
+              {user.role === "user" && (
+                <Link
+                  to="/patient/appointments"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
+                >
+                  <CalendarCheck
+                    size={16}
+                    className="group-hover:scale-110 transition-transform duration-300"
+                  />
+                  My Appointments
+                </Link>
+              )}
+              {/* Doctor Appointments - Only visible to doctors (mobile) */}
+              {(user.role === "doctor" || isAdmin) && (
+                <Link
+                  to="/doctor/appointments"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
+                >
+                  <CalendarCheck
+                    size={16}
+                    className="group-hover:scale-110 transition-transform duration-300"
+                  />
+                  Appointments
+                </Link>
+              )}
+              <Link
                 to="/blogs"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
@@ -407,6 +503,20 @@ const Header = () => {
                 />
                 Chat
               </Link>
+              {/* About Us - Only visible to doctors and admins */}
+              {(user.role === "doctor" || user.role === "admin" || isAdmin) && (
+                <Link
+                  to="/about-us"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
+                >
+                  <Info
+                    size={16}
+                    className="group-hover:scale-110 transition-transform duration-300"
+                  />
+                  About Us
+                </Link>
+              )}
 
               <button
                 type="button"

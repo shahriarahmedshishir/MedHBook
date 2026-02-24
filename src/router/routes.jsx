@@ -6,14 +6,19 @@ import SignUp from "../Pages/SignUp";
 import SignIn from "../Pages/SignIn";
 import PatientHome from "../Pages/PatientHome";
 import DoctorHome from "../Pages/DoctorHome";
+import AdminDashboard from "../Pages/AdminDashboard";
+import ManageDoctorApplications from "../Pages/ManageDoctorApplications";
+import ApplyDoctor from "../Pages/ApplyDoctor";
 import PatientDetails from "../Pages/PatientDetails";
 import Prescriptions from "../Pages/Presciptions";
 import Reports from "../Pages/Reports";
+import DigitalPrescriptions from "../Pages/DigitalPrescriptions";
 import EditDoctorProfile from "../Pages/EditDoctorProfile";
 import EditUserProfile from "../Pages/EditUserProfile";
 import DoctorProfile from "../Pages/DoctorProfile";
 import PrivateRouter from "../Components/PrivateRouter/PrivateRoter";
 import PatientRouter from "../Components/PrivateRouter/PatientRouter";
+import AdminRouter from "../Components/PrivateRouter/AdminRouter";
 import Xrays from "../Pages/Xrays";
 import SearchDoctor from "../Pages/SearchDoctor";
 import Chat from "../Pages/Chat";
@@ -21,6 +26,9 @@ import Blogs from "../Pages/Blogs";
 import CreateBlog from "../Pages/CreateBlog";
 import BlogDetail from "../Pages/BlogDetail";
 import AboutUs from "../Pages/AboutUs";
+import Appointment from "../Pages/Appointment";
+import DoctorAppointments from "../Pages/DoctorAppointments";
+import PatientAppointments from "../Pages/PatientAppointments";
 
 // Example of a fake auth check (replace with your real one)
 const isAuthenticated = false; // later, you’ll use Firebase or context here
@@ -45,6 +53,30 @@ const routes = createBrowserRouter([
       <PublicLayout>
         <SearchDoctor />
       </PublicLayout>
+    ),
+  },
+  {
+    path: "/appointment/:doctorId",
+    element: (
+      <PublicLayout>
+        <Appointment />
+      </PublicLayout>
+    ),
+  },
+  {
+    path: "/doctor/appointments",
+    element: (
+      <PrivateRouter>
+        <DoctorAppointments />
+      </PrivateRouter>
+    ),
+  },
+  {
+    path: "/patient/appointments",
+    element: (
+      <PatientRouter>
+        <PatientAppointments />
+      </PatientRouter>
     ),
   },
   {
@@ -76,14 +108,6 @@ const routes = createBrowserRouter([
     element: (
       <PublicLayout>
         <BlogDetail />
-      </PublicLayout>
-    ),
-  },
-  {
-    path: "/about-us",
-    element: (
-      <PublicLayout>
-        <AboutUs />
       </PublicLayout>
     ),
   },
@@ -134,11 +158,43 @@ const routes = createBrowserRouter([
         ),
       },
       {
+        path: "patient/digital-prescriptions",
+        element: (
+          <PatientRouter>
+            <DigitalPrescriptions />
+          </PatientRouter>
+        ),
+      },
+      {
         path: "doctor",
         element: (
           <PrivateRouter>
             <DoctorHome />
           </PrivateRouter>
+        ),
+      },
+      {
+        path: "admin",
+        element: (
+          <AdminRouter>
+            <AdminDashboard />
+          </AdminRouter>
+        ),
+      },
+      {
+        path: "admin/doctor-applications",
+        element: (
+          <AdminRouter>
+            <ManageDoctorApplications />
+          </AdminRouter>
+        ),
+      },
+      {
+        path: "apply-doctor",
+        element: (
+          <PatientRouter>
+            <ApplyDoctor />
+          </PatientRouter>
         ),
       },
       {
@@ -159,6 +215,14 @@ const routes = createBrowserRouter([
           <PatientRouter>
             <EditUserProfile />
           </PatientRouter>
+        ),
+      },
+      {
+        path: "/about-us",
+        element: (
+          <PrivateRouter>
+            <AboutUs />
+          </PrivateRouter>
         ),
       },
     ],

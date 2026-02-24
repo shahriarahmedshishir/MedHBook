@@ -2,8 +2,8 @@ import { useContext } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import AuthContext from "../Context/AuthContext";
 
-const PatientRouter = ({ children }) => {
-  const { user, loading } = useContext(AuthContext);
+const AdminRouter = ({ children }) => {
+  const { user, loading, isAdmin } = useContext(AuthContext);
   const location = useLocation();
 
   if (loading) {
@@ -14,26 +14,17 @@ const PatientRouter = ({ children }) => {
     return <Navigate to="/signin" state={{ from: location }} replace />;
   }
 
-  // If user role is not yet loaded, show loading
+  // Check if user role is loaded
   if (!user.role) {
     return <div>Loading user data...</div>;
   }
 
-  // Redirect based on role
-  if (user.role === "admin") {
-    return <Navigate to="/admin" replace />;
-  }
-
-  if (user.role === "doctor") {
-    return <Navigate to="/doctor" replace />;
-  }
-
-  // Only allow users with "user" role
-  if (user.role !== "user") {
+  // Only allow admins
+  if (user.role !== "admin" && !isAdmin) {
     return <Navigate to="/patient" replace />;
   }
 
   return children;
 };
 
-export default PatientRouter;
+export default AdminRouter;

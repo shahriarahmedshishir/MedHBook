@@ -42,7 +42,7 @@ const Reports = () => {
 
   const toggleSelectForDelete = (id) => {
     setSelectedForDelete((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -52,8 +52,12 @@ const Reports = () => {
 
   const handleRemoveStoredFile = async (id) => {
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`${serverURL}/reports/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
       if (!res.ok) throw new Error("Failed to delete report");
       setReports((prev) => prev.filter((f) => f._id !== id));
@@ -107,8 +111,12 @@ const Reports = () => {
 
     setUploading(true);
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`${serverURL}/reports`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
       if (!res.ok) throw new Error("Upload failed");
@@ -130,8 +138,14 @@ const Reports = () => {
     if (!user?.email) return;
     const fetchReports = async () => {
       try {
+        const token = localStorage.getItem("authToken");
         const res = await fetch(
-          `${serverURL}/reports?email=${encodeURIComponent(user.email)}`
+          `${serverURL}/reports?email=${encodeURIComponent(user.email)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
         const data = await res.json();
         setReports(Array.isArray(data) ? data : []);

@@ -1,6 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
+import AuthContext from "../Components/Context/AuthContext";
 import { useLocation } from "react-router-dom";
-import { FileText, Pill, Activity } from "lucide-react";
+import { FileText, Pill, Activity, FilePlus, File } from "lucide-react";
+import { authGet } from "../utils/api";
+import PrescriptionGenerator from "../Components/Shared/PrescriptionGenerator";
+import PrescriptionCard from "../Components/Shared/PrescriptionCard";
 
 const getFullImageURL = (imgPath) => {
   if (!imgPath) return null;
@@ -10,26 +14,123 @@ const getFullImageURL = (imgPath) => {
 };
 
 const PatientDetails = () => {
+  const { user } = useContext(AuthContext);
   const location = useLocation();
   const { email, uid, name, img } = location.state || {};
 
   const [prescriptions, setPrescriptions] = useState([]);
+  const [digitalPrescriptions, setDigitalPrescriptions] = useState([]);
   const [reports, setReports] = useState([]);
   const [xrays, setXrays] = useState([]);
   const [patientData, setPatientData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalImg, setModalImg] = useState(null);
+  const [showPrescriptionGen, setShowPrescriptionGen] = useState(false);
 
+  // Handler for downloading digital prescription as PDF
+  const handleDownloadDigitalPrescriptionPDF = async (prescription) => {
+    try {
+      const prescriptionElement = document.getElementById(
+        `digital-prescription-${prescription._id}`,
+      );
+      if (!prescriptionElement) {
+        alert("Prescription element not found. Please try again.");
+        return;
+      }
+      // Clone and strip all classNames
+      const clone = prescriptionElement.cloneNode(true);
+      const stripClassNames = (element) => {
+        if (element.removeAttribute) element.removeAttribute("class");
+        Array.from(element.children).forEach(stripClassNames);
+      };
+      stripClassNames(clone);
+      // Hide action buttons in the clone
+      const actionDiv = clone.querySelector(
+        "div.mt-4.pt-4.border-t.flex.justify-end.gap-3.w-full",
+      );
+      let prevDisplay = null;
+      if (actionDiv) {
+        prevDisplay = actionDiv.style.display;
+        actionDiv.style.display = "none";
+      }
+      // Render in a hidden, style-free container
+      const hiddenDiv = document.createElement("div");
+      hiddenDiv.style.position = "fixed";
+      hiddenDiv.style.left = "-9999px";
+      hiddenDiv.style.top = "0";
+      hiddenDiv.style.background = "#fff";
+      hiddenDiv.appendChild(clone);
+      document.body.appendChild(hiddenDiv);
+      const html2canvas = (await import("html2canvas")).default;
+      const jsPDF = (await import("jspdf")).default;
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
+      });
+      document.body.removeChild(hiddenDiv);
+      // Restore action buttons
+      if (actionDiv) actionDiv.style.display = prevDisplay;
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width, canvas.height],
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+      const fileName = `Prescription_${prescription.doctorName}_${new Date(prescription.createdAt).toLocaleDateString().replace(/\//g, "-")}.pdf`;
+      pdf.save(fileName);
+      alert("PDF downloaded successfully!");
+    } catch (error) {
+      alert(`Failed to download prescription: ${error.message}`);
+    }
+  };
+
+  // Handler for deleting digital prescription
+  const handleDeleteDigitalPrescription = async (prescriptionId) => {
+    if (!window.confirm("Are you sure you want to delete this prescription?")) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(`/digital-prescriptions/${prescriptionId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        throw new Error(
+          errorData.message ||
+            errorData.error ||
+            "Failed to delete prescription",
+        );
+      }
+      // Remove from state
+      setDigitalPrescriptions((prev) =>
+        prev.filter((p) => p._id !== prescriptionId),
+      );
+      alert("Prescription deleted successfully");
+    } catch (error) {
+      alert("Failed to delete prescription: " + error.message);
+    }
+  };
   useEffect(() => {
     if (!email && !uid) return;
 
     const fetchData = async () => {
       setLoading(true);
       try {
-        const base = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
-
         const fetchAndSort = async (url) => {
-          const res = await fetch(url);
+          const res = await authGet(url);
+          if (!res.ok) throw new Error(`Failed to fetch from ${url}`);
           const data = await res.json();
           return data.sort(
             (a, b) => new Date(b.createdAt) - new Date(a.createdAt),
@@ -38,29 +139,32 @@ const PatientDetails = () => {
 
         // Fetch patient details
         if (email) {
-          const userRes = await fetch(`${base}/user/${email}`);
+          const userRes = await authGet(`/user/${email}`);
+          if (!userRes.ok) throw new Error("Failed to fetch user data");
           const userData = await userRes.json();
           setPatientData(userData);
         }
 
         setPrescriptions(
           await fetchAndSort(
-            `${base}/prescriptions?${uid ? `uid=${uid}` : `email=${email}`}`,
+            `/prescriptions?${uid ? `uid=${uid}` : `email=${email}`}`,
           ),
+        );
+        // Fetch digital prescriptions (assume endpoint exists)
+        setDigitalPrescriptions(
+          await fetchAndSort(`/digital-prescriptions?email=${email}`),
         );
         setReports(
           await fetchAndSort(
-            `${base}/reports?${uid ? `uid=${uid}` : `email=${email}`}`,
+            `/reports?${uid ? `uid=${uid}` : `email=${email}`}`,
           ),
         );
         setXrays(
-          await fetchAndSort(
-            `${base}/xrays?${uid ? `uid=${uid}` : `email=${email}`}`,
-          ),
+          await fetchAndSort(`/xrays?${uid ? `uid=${uid}` : `email=${email}`}`),
         );
       } catch (err) {
-        console.error(err);
-        alert("Error fetching patient data");
+        console.error("Error fetching patient data:", err);
+        alert("Error fetching patient data: " + err.message);
       } finally {
         setLoading(false);
       }
@@ -118,8 +222,27 @@ const PatientDetails = () => {
 
   return (
     <div className="min-h-screen p-6 bg-gray-100">
+      {/* Prescription Generator Modal */}
+      {showPrescriptionGen && (
+        <PrescriptionGenerator
+          patient={{ name, uid, email }}
+          onClose={() => setShowPrescriptionGen(false)}
+        />
+      )}
+
       {/* Patient Card */}
       <div className="max-w-2xl mx-auto bg-white rounded-3xl shadow-xl p-6 mb-12">
+        {/* Add Prescription Button */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={() => setShowPrescriptionGen(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#67cffe] to-[#304d5d] text-white rounded-lg hover:shadow-xl transition-all font-semibold"
+          >
+            <FilePlus className="w-5 h-5" />
+            Create Prescription
+          </button>
+        </div>
+
         <div className="flex flex-col items-center gap-4 mb-6">
           <img
             src={getFullImageURL(img)}
@@ -193,6 +316,77 @@ const PatientDetails = () => {
       </div>
 
       {/* Sections */}
+      {/* Digital Prescriptions Section */}
+      <div className="mb-10">
+        <h3 className="text-xl font-semibold text-gray-800 mb-4 flex items-center justify-center gap-2">
+          <FileText className="w-5 h-5 text-teal-500" /> Digital Prescriptions
+        </h3>
+        {digitalPrescriptions.length === 0 ? (
+          <p className="text-gray-500 text-center">
+            No digital prescriptions found
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 justify-items-center">
+            {digitalPrescriptions.map((item) => (
+              <div
+                key={item._id}
+                className="bg-white rounded-2xl shadow-md p-4 w-64 hover:shadow-xl transition flex flex-col items-center"
+                id={`digital-prescription-${item._id}`}
+              >
+                <PrescriptionCard
+                  doctorInfo={{
+                    doctorName: item.doctorName,
+                    doctorSpecialty: item.doctorSpecialty,
+                    chamber: item.chamber,
+                    phone: item.chamberPhone,
+                  }}
+                  patient={{
+                    name: item.patientName || "",
+                    uid: item.patientUid || "",
+                  }}
+                  medicines={item.medicines}
+                  createdAt={item.createdAt}
+                  compact={true}
+                />
+                {/* Action Buttons */}
+                <div className="mt-4 pt-4 border-t flex justify-end gap-3 w-full">
+                  {user?.role === "doctor" && (
+                    <button
+                      onClick={() => alert("Update functionality coming soon!")}
+                      className="flex items-center gap-2 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition"
+                    >
+                      <FilePlus className="w-4 h-4" />
+                      Update
+                    </button>
+                  )}
+                  {user?.role === "user" && (
+                    <>
+                      <button
+                        onClick={() =>
+                          handleDeleteDigitalPrescription(item._id)
+                        }
+                        className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                      >
+                        <File className="w-4 h-4" />
+                        Delete
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleDownloadDigitalPrescriptionPDF(item)
+                        }
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                      >
+                        <FilePlus className="w-4 h-4" />
+                        Download PDF
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
       <Section title="Prescriptions" icon={Pill} data={prescriptions} />
       <Section title="Reports" icon={FileText} data={reports} />
       <Section title="X-Rays" icon={Activity} data={xrays} />

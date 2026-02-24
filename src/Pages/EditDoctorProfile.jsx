@@ -1,6 +1,8 @@
 import { useState, useEffect, useContext } from "react";
 import axios from "axios";
 import AuthContext from "../Components/Context/AuthContext";
+import ChamberManagement from "../Components/Shared/ChamberManagement";
+import { authGet, authPost, authPut } from "../utils/api";
 
 const EditDoctorProfile = () => {
   const { user, refreshUser } = useContext(AuthContext);
@@ -19,6 +21,7 @@ const EditDoctorProfile = () => {
     doctorType: "",
     certifications: [],
     bio: "",
+    chambers: [], // Add chambers array
     img: null, // New image file to upload
     existingImg: "", // Existing image path from database
     uid: "", // store uid
@@ -35,16 +38,12 @@ const EditDoctorProfile = () => {
     const fetchData = async () => {
       try {
         // Fetch doctor profile data
-        const doctorRes = await axios.get(
-          `http://localhost:3000/doctor/${user.email}`,
-        );
-        const doctorData = doctorRes.data;
+        const doctorRes = await authGet(`/doctor/${user.email}`);
+        const doctorData = await doctorRes.json();
 
         // Fetch user data for image (source of truth)
-        const userRes = await axios.get(
-          `http://localhost:3000/user/${user.email}`,
-        );
-        const userData = userRes.data;
+        const userRes = await authGet(`/user/${user.email}`);
+        const userData = await userRes.json();
 
         setFormData({
           name: user.name,
@@ -60,6 +59,7 @@ const EditDoctorProfile = () => {
           doctorType: doctorData.doctorType || "",
           certifications: doctorData.certifications || [],
           bio: doctorData.bio || "",
+          chambers: doctorData.chambers || [], // Load chambers
           img: null,
           existingImg: userData.img || "", // Use image from userCollection
           uid: user.uid, // always add uid
@@ -86,10 +86,8 @@ const EditDoctorProfile = () => {
 
         // Still fetch user data for image
         try {
-          const userRes = await axios.get(
-            `http://localhost:3000/user/${user.email}`,
-          );
-          const userData = userRes.data;
+          const userRes = await authGet(`/user/${user.email}`);
+          const userData = await userRes.json();
 
           setFormData((prev) => ({
             ...prev,
@@ -180,23 +178,23 @@ const EditDoctorProfile = () => {
         imageFormData.append("image", formData.img);
 
         try {
-          const uploadRes = await axios.post(
-            `http://localhost:3000/upload-doctor-image`,
+          const uploadRes = await authPost(
+            `/upload-doctor-image`,
             imageFormData,
-            { headers: { "Content-Type": "multipart/form-data" } },
           );
-          imgPath = uploadRes.data.imagePath;
+          const uploadData = await uploadRes.json();
+          imgPath = uploadData.imagePath;
           console.log("✅ Image uploaded successfully:", imgPath);
 
           // CRITICAL: Update userCollection IMMEDIATELY with the new image
           // This is the source of truth for Header/DoctorHome
           try {
             console.log("Updating userCollection with new image:", imgPath);
-            const userUpdateRes = await axios.put(
-              `http://localhost:3000/user/${user.email}`,
-              { img: imgPath },
-            );
-            console.log("✅ User collection updated:", userUpdateRes.data);
+            const userUpdateRes = await authPut(`/user/${user.email}`, {
+              img: imgPath,
+            });
+            const userUpdateData = await userUpdateRes.json();
+            console.log("✅ User collection updated:", userUpdateData);
           } catch (userUpdateErr) {
             console.error(
               "❌ Failed to update user collection:",
@@ -238,6 +236,7 @@ const EditDoctorProfile = () => {
           ? formData.certifications
           : [],
         bio: formData.bio,
+        chambers: formData.chambers || [], // Include chambers
       };
 
       // Only add img if a new one was uploaded, otherwise keep existing
@@ -256,62 +255,77 @@ const EditDoctorProfile = () => {
 
       if (profileExists) {
         try {
-          const res = await axios.put(
-            `http://localhost:3000/doctor/${user.email}`,
-            payload,
-          );
-          console.log("Profile updated:", res.data);
-          setStatus({
-            type: "success",
-            message: "Profile updated successfully!",
-          });
+          const res = await authPut(`/doctor/${user.email}`, payload);
+
+          if (!res.ok) {
+            // If doctor not found, try creating it
+            if (res.status === 404) {
+              console.log("Doctor not found, creating new profile...");
+              const createRes = await authPost(`/doctor`, payload);
+              const resData = await createRes.json();
+              console.log("Profile created:", resData);
+              setStatus({
+                type: "success",
+                message: "Profile created successfully!",
+              });
+              setProfileExists(true);
+            } else {
+              throw new Error(`Failed to update profile: ${res.status}`);
+            }
+          } else {
+            const resData = await res.json();
+            console.log("Profile updated:", resData);
+            setStatus({
+              type: "success",
+              message: "Profile updated successfully!",
+            });
+          }
         } catch (putErr) {
-          // If doctor not found and we thought it exists, try creating it
-          if (putErr.response?.status === 404) {
-            console.log("Doctor not found, creating new profile...");
-            const res = await axios.post(
-              `http://localhost:3000/doctor`,
-              payload,
-            );
-            console.log("Profile created:", res.data);
+          console.error("Error updating doctor profile:", putErr);
+          throw putErr;
+        }
+      } else {
+        try {
+          const res = await authPost(`/doctor`, payload);
+
+          if (!res.ok) {
+            // If doctor already exists, try updating it
+            if (res.status === 400) {
+              const errorData = await res.json();
+              if (errorData.message?.includes("already exists")) {
+                console.log("Doctor already exists, updating profile...");
+                const updateRes = await authPut(
+                  `/doctor/${user.email}`,
+                  payload,
+                );
+                const resData = await updateRes.json();
+                console.log("Profile updated:", resData);
+                setStatus({
+                  type: "success",
+                  message: "Profile updated successfully!",
+                });
+                setProfileExists(true);
+              } else {
+                throw new Error(
+                  errorData.message ||
+                    `Failed to create profile: ${res.status}`,
+                );
+              }
+            } else {
+              throw new Error(`Failed to create profile: ${res.status}`);
+            }
+          } else {
+            const resData = await res.json();
+            console.log("Profile created:", resData);
             setStatus({
               type: "success",
               message: "Profile created successfully!",
             });
             setProfileExists(true);
-          } else {
-            throw putErr;
           }
-        }
-      } else {
-        try {
-          const res = await axios.post(`http://localhost:3000/doctor`, payload);
-          console.log("Profile created:", res.data);
-          setStatus({
-            type: "success",
-            message: "Profile created successfully!",
-          });
-          setProfileExists(true);
         } catch (postErr) {
-          // If doctor already exists and we thought it doesn't, try updating it
-          if (
-            postErr.response?.status === 400 &&
-            postErr.response?.data?.message?.includes("already exists")
-          ) {
-            console.log("Doctor already exists, updating profile...");
-            const res = await axios.put(
-              `http://localhost:3000/doctor/${user.email}`,
-              payload,
-            );
-            console.log("Profile updated:", res.data);
-            setStatus({
-              type: "success",
-              message: "Profile updated successfully!",
-            });
-            setProfileExists(true);
-          } else {
-            throw postErr;
-          }
+          console.error("Error creating doctor profile:", postErr);
+          throw postErr;
         }
       }
 
@@ -616,6 +630,13 @@ const EditDoctorProfile = () => {
               value={formData.bio}
               onChange={handleChange}
               className="w-full border p-2 rounded-lg"
+            />
+          </div>
+          {/* Chamber Management */}
+          <div className="pt-4">
+            <ChamberManagement
+              chambers={formData.chambers}
+              onChange={(chambers) => setFormData({ ...formData, chambers })}
             />
           </div>
           <button

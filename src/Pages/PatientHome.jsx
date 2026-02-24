@@ -1,4 +1,11 @@
-import { CalendarCheck, File, Pill, Activity } from "lucide-react";
+import {
+  CalendarCheck,
+  File,
+  Pill,
+  Activity,
+  GraduationCap,
+} from "lucide-react";
+import { FileText } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState } from "react";
 import Logo from "../Components/Shared/Logo";
@@ -23,81 +30,100 @@ const PatientHome = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] p-6 relative overflow-hidden">
+    <div className="h-[calc(100vh-7rem)]  bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] p-4 relative overflow-hidden flex flex-col">
       {/* Animated background blobs */}
-      <div className="absolute top-20 right-10 w-96 h-96 bg-[#67cffe] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float"></div>
+      <div className="absolute top-10 right-10 w-64 h-64 bg-[#67cffe] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float"></div>
       <div
-        className="absolute bottom-20 left-10 w-96 h-96 bg-[#304d5d] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float"
+        className="absolute bottom-10 left-10 w-64 h-64 bg-[#304d5d] rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-float"
         style={{ animationDelay: "2s" }}
       ></div>
 
-      <div className="max-w-6xl mx-auto text-center mb-12 relative z-10 animate-fadeIn">
+      {/* Header */}
+      <div className="max-w-6xl w-full mx-auto text-center mb-4 relative z-10 animate-fadeIn">
         <Logo />
-        <p className="mt-4 text-lg font-semibold text-[#304d5d] tracking-wide">
+        <p className="mt-1 text-sm font-semibold text-[#304d5d] tracking-wide">
           Your Health. Your Records. One Book.
         </p>
       </div>
 
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-8 relative z-10">
-        <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-6 md:p-8 border border-white/20 animate-slideInLeft">
-          <h2 className="text-2xl font-bold mb-8 bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent">
+      {/* Main Grid */}
+      <div className="max-w-6xl w-full mx-auto grid grid-cols-1 lg:grid-cols-3 gap-4 relative z-10 flex-1 min-h-0">
+        {/* Medical Records */}
+        <div className="lg:col-span-2 bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-5 h-110 border border-white/20 animate-slideInLeft flex flex-col">
+          <h2 className="text-lg font-bold mb-4 bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent">
             Medical Records
           </h2>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Link
               to="/patient/xrays"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-6 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
             >
-              <Activity className="w-12 h-12 text-[#67cffe] mb-4 group-hover:scale-110 transition-transform duration-300" />
-              <h3 className="font-bold text-[#304d5d]">X-Rays</h3>
-              <p className="text-sm text-gray-600 mt-2">
+              <Activity className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
+              <h3 className="font-bold text-[#304d5d] text-sm">X-Rays</h3>
+              <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 View and download scans
               </p>
             </Link>
 
             <Link
-              to="/patient/prescriptions"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-6 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1"
+              to="/patient/digital-prescriptions"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
             >
-              <Pill className="w-12 h-12 text-[#67cffe] mb-4 group-hover:scale-110 transition-transform duration-300" />
-              <h3 className="font-bold text-[#304d5d]">Prescriptions</h3>
-              <p className="text-sm text-gray-600 mt-2">
+              <FileText className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
+              <h3 className="font-bold text-[#304d5d] text-sm">
+                Digital Prescriptions
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5 leading-tight">
+                Download and view prescriptions
+              </p>
+            </Link>
+
+            <Link
+              to="/patient/prescriptions"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
+            >
+              <Pill className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
+              <h3 className="font-bold text-[#304d5d] text-sm">
+                Prescriptions
+              </h3>
+              <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 Doctor-issued medicines
               </p>
             </Link>
 
             <Link
               to="/patient/reports"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-6 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
             >
-              <File className="w-12 h-12 text-[#67cffe] mb-4 group-hover:scale-110 transition-transform duration-300" />
-              <h3 className="font-bold text-[#304d5d]">Reports</h3>
-              <p className="text-sm text-gray-600 mt-2">
+              <File className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
+              <h3 className="font-bold text-[#304d5d] text-sm">Reports</h3>
+              <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 Lab & diagnostic results
               </p>
             </Link>
           </div>
 
-          <div className="flex justify-center mt-8">
+          <div className="flex justify-center mt-4">
             <button
               onClick={handleReminder}
-              className="flex items-center gap-3 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white px-8 py-3.5 rounded-full hover:shadow-xl hover:shadow-[#67cffe]/30 transition-all duration-300 hover:-translate-y-0.5 font-semibold"
+              className="flex items-center gap-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white px-6 py-2.5 rounded-full hover:shadow-xl hover:shadow-[#67cffe]/30 transition-all duration-300 hover:-translate-y-0.5 font-semibold text-sm"
             >
-              <CalendarCheck className="w-5 h-5" />
+              <CalendarCheck className="w-4 h-4" />
               Set Reminder
             </button>
           </div>
         </div>
 
-        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-6 md:p-8 border border-white/20 animate-slideInRight">
-          <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent">
+        {/* BMI Calculator */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-2xl p-5 border h-110 border-white/20 animate-slideInRight flex flex-col">
+          <h2 className="text-lg font-bold mb-4 bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent">
             BMI Calculator
           </h2>
 
-          <div className="space-y-5">
+          <div className="space-y-3 flex-1">
             <div>
-              <label className="block text-sm font-semibold text-[#304d5d] mb-2">
+              <label className="block text-xs font-semibold text-[#304d5d] mb-1">
                 Height (feet)
               </label>
               <input
@@ -106,12 +132,12 @@ const PatientHome = () => {
                 value={height}
                 onChange={(e) => setHeight(e.target.value)}
                 placeholder="e.g. 5.7"
-                className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 focus:outline-none focus:border-[#67cffe] focus:shadow-lg focus:shadow-[#67cffe]/20 transition-all duration-300 bg-white"
+                className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#67cffe] focus:shadow-lg focus:shadow-[#67cffe]/20 transition-all duration-300 bg-white"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-semibold text-[#304d5d] mb-2">
+              <label className="block text-xs font-semibold text-[#304d5d] mb-1">
                 Weight (kg)
               </label>
               <input
@@ -119,28 +145,51 @@ const PatientHome = () => {
                 value={weight}
                 onChange={(e) => setWeight(e.target.value)}
                 placeholder="e.g. 65"
-                className="w-full rounded-lg border-2 border-gray-200 px-4 py-3 focus:outline-none focus:border-[#67cffe] focus:shadow-lg focus:shadow-[#67cffe]/20 transition-all duration-300 bg-white"
+                className="w-full rounded-lg border-2 border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-[#67cffe] focus:shadow-lg focus:shadow-[#67cffe]/20 transition-all duration-300 bg-white"
               />
             </div>
 
             {bmi && (
-              <div className="mt-6 p-5 rounded-xl bg-gradient-to-br from-[#67cffe]/10 to-[#304d5d]/5 border-2 border-[#67cffe]/30 text-center animate-scaleIn">
-                <p className="text-2xl font-bold text-[#304d5d]">BMI: {bmi}</p>
+              <div className="mt-3 p-4 rounded-xl bg-gradient-to-br from-[#67cffe]/10 to-[#304d5d]/5 border-2 border-[#67cffe]/30 text-center animate-scaleIn">
+                <p className="text-xl font-bold text-[#304d5d]">BMI: {bmi}</p>
                 <p
-                  className={`text-sm font-semibold mt-2 px-4 py-2 rounded-full inline-block ${
+                  className={`text-xs font-semibold mt-2 px-3 py-1.5 rounded-full inline-block ${
                     bmi < 18.5
                       ? "bg-blue-100 text-blue-700"
                       : bmi < 25
-                      ? "bg-green-100 text-green-700"
-                      : bmi < 30
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-red-100 text-red-700"
+                        ? "bg-green-100 text-green-700"
+                        : bmi < 30
+                          ? "bg-yellow-100 text-yellow-700"
+                          : "bg-red-100 text-red-700"
                   }`}
                 >
                   {bmiStatus()}
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      </div>
+
+      {/* Apply to be a Doctor Section */}
+      <div className="max-w-6xl w-full mx-auto mb-4 relative z-10 animate-fadeIn">
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-2xl px-6 py-4 text-white border border-white/20">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <GraduationCap className="w-10 h-10" />
+              <div>
+                <h3 className="text-base font-bold">Are you a Doctor?</h3>
+                <p className="text-white/90 text-xs mt-0.5">
+                  Join our platform as a healthcare provider
+                </p>
+              </div>
+            </div>
+            <Link
+              to="/apply-doctor"
+              className="bg-white text-indigo-600 px-6 py-2 rounded-full font-semibold text-sm hover:shadow-xl hover:scale-105 transition-all duration-300 whitespace-nowrap"
+            >
+              Apply Now
+            </Link>
           </div>
         </div>
       </div>

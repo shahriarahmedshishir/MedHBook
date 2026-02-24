@@ -1,13 +1,20 @@
 import React, { useState, useContext, useEffect, useRef } from "react";
-import { Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../Components/Shared/Logo";
 import AuthContext from "../Components/Context/AuthContext";
+import {
+  signInWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+} from "firebase/auth";
+import auth from "../Components/Firebase/firebase.init";
 
 const SignIn = () => {
   const {
     signInUser,
     resetPassword,
+    sendVerificationEmail,
     isAdmin,
     user,
     loading: authLoading,
@@ -18,6 +25,8 @@ const SignIn = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [localLoading, setLocalLoading] = useState(false);
+  const [verificationError, setVerificationError] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
@@ -52,6 +61,7 @@ const SignIn = () => {
   const handleSignIn = async (e) => {
     e.preventDefault();
     setError(null);
+    setVerificationError(false);
     setLocalLoading(true);
 
     try {
@@ -59,31 +69,61 @@ const SignIn = () => {
     } catch (err) {
       console.error("Sign-in failed:", err);
       let message = "Something went wrong. Please try again.";
-      switch (err.code) {
-        case "auth/user-not-found":
-        case "auth/wrong-password":
-          message = "Wrong email or password!";
-          break;
-        case "auth/invalid-email":
-          message = "Please enter a valid email address!";
-          break;
-        case "auth/too-many-requests":
-          message = "Too many attempts. Please try again later.";
-          break;
-        default:
-          message = err.message || message;
+
+      // Check if it's an email verification error
+      if (err.message && err.message.includes("verify your email")) {
+        setVerificationError(true);
+        setError(err.message);
+      } else {
+        switch (err.code) {
+          case "auth/user-not-found":
+          case "auth/wrong-password":
+            message = "Wrong email or password!";
+            break;
+          case "auth/invalid-email":
+            message = "Please enter a valid email address!";
+            break;
+          case "auth/too-many-requests":
+            message = "Too many attempts. Please try again later.";
+            break;
+          default:
+            message = err.message || message;
+        }
+        setError(message);
       }
-      setError(message);
     } finally {
       setLocalLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setResendSuccess(false);
+    try {
+      // Temporarily sign in to resend verification
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password,
+      );
+      await sendEmailVerification(cred.user);
+      await signOut(auth);
+      setResendSuccess(true);
+      setTimeout(() => setResendSuccess(false), 5000);
+    } catch (err) {
+      console.error("Failed to resend verification:", err);
+      setError(
+        "Failed to resend verification email. Please check your credentials and try again.",
+      );
     }
   };
 
   // Redirect after successful login
   useEffect(() => {
     if (!authLoading && user) {
-      // Check if user has doctor role
-      if (user.role === "doctor" || user.role === "admin" || isAdmin) {
+      // Check user role and redirect accordingly
+      if (user.role === "admin" || isAdmin) {
+        navigate("/admin", { replace: true });
+      } else if (user.role === "doctor") {
         navigate("/doctor", { replace: true });
       } else {
         navigate("/patient", { replace: true });
@@ -179,8 +219,25 @@ const SignIn = () => {
           </button>
 
           {error && (
-            <p className="text-red-600 text-center text-sm bg-red-50 p-3 rounded-lg border border-red-200 animate-fadeIn">
-              {error}
+            <div className="bg-red-50 p-4 rounded-lg border border-red-200 animate-fadeIn">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="text-red-600 w-5 h-5 flex-shrink-0 mt-0.5" />
+                <p className="text-red-600 text-sm flex-1">{error}</p>
+              </div>
+              {verificationError && (
+                <button
+                  type="button"
+                  onClick={handleResendVerification}
+                  className="mt-3 w-full bg-[#67cffe] text-white text-sm font-semibold py-2 rounded-lg hover:bg-[#304d5d] transition-colors duration-300"
+                >
+                  Resend Verification Email
+                </button>
+              )}
+            </div>
+          )}
+          {resendSuccess && (
+            <p className="text-green-600 text-center text-sm bg-green-50 p-3 rounded-lg border border-green-200 animate-fadeIn">
+              ✅ Verification email sent! Check your inbox.
             </p>
           )}
         </form>

@@ -6,6 +6,7 @@ import {
   signOut,
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
+  sendEmailVerification,
 } from "firebase/auth";
 import auth from "../Firebase/firebase.init";
 
@@ -16,9 +17,31 @@ const AuthProvider = ({ children }) => {
 
   const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
-  const createUser = (email, password) => {
+  const createUser = async (email, password) => {
     setLoading(true);
-    return createUserWithEmailAndPassword(auth, email, password);
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        email,
+        password,
+      );
+      // Send email verification
+      await sendEmailVerification(userCredential.user);
+      console.log("📧 Email verification sent to:", userCredential.user.email);
+      return userCredential;
+    } catch (error) {
+      console.error("❌ Error creating user or sending verification:", error);
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const sendVerificationEmail = async () => {
+    const currentUser = auth.currentUser;
+    if (currentUser && !currentUser.emailVerified) {
+      await sendEmailVerification(currentUser);
+    }
   };
 
   const signInUser = async (email, password) => {
@@ -26,6 +49,39 @@ const AuthProvider = ({ children }) => {
     try {
       const cred = await signInWithEmailAndPassword(auth, email, password);
       const firebaseUser = cred.user;
+
+      // Check if email is verified
+      if (!firebaseUser.emailVerified) {
+        await signOut(auth);
+        throw new Error(
+          "Please verify your email before signing in. Check your inbox for the verification link.",
+        );
+      }
+
+      // Get JWT token from backend
+      const tokenResponse = await fetch(`${serverURL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: firebaseUser.email,
+          firebaseUid: firebaseUser.uid,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        throw new Error(
+          errorData.error || "Failed to get authentication token",
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      // Store JWT token in localStorage
+      localStorage.setItem("authToken", tokenData.token);
+      console.log("🔐 JWT token stored");
 
       await firebaseUser.getIdToken(true);
       const idTokenResult = await firebaseUser.getIdTokenResult();
@@ -52,7 +108,7 @@ const AuthProvider = ({ children }) => {
         `${serverURL}/doctor/${firebaseUser.email}`,
       );
       const doctorData = await doctorRes.json();
-      if (doctorData && !idTokenResult.claims.doctor) {
+      if (doctorData && !idTokenResult.claims.doctor && userRole !== "admin") {
         userRole = "doctor";
       }
 
@@ -78,6 +134,7 @@ const AuthProvider = ({ children }) => {
     } catch (error) {
       setUser(null);
       setIsAdmin(false);
+      localStorage.removeItem("authToken"); // Clear token on error
       throw error;
     } finally {
       setLoading(false);
@@ -88,6 +145,8 @@ const AuthProvider = ({ children }) => {
     setLoading(true);
     setIsAdmin(false);
     setUser(null);
+    localStorage.removeItem("authToken"); // Clear JWT token
+    console.log("🔐 JWT token cleared");
     return signOut(auth).finally(() => setLoading(false));
   };
 
@@ -145,6 +204,15 @@ const AuthProvider = ({ children }) => {
         return;
       }
 
+      // Check if email is verified - if not, don't set user state
+      if (!firebaseUser.emailVerified) {
+        console.log("Email not verified, clearing user state");
+        setUser(null);
+        setIsAdmin(false);
+        setLoading(false);
+        return;
+      }
+
       try {
         await firebaseUser.getIdToken(true);
         const idTokenResult = await firebaseUser.getIdTokenResult();
@@ -195,6 +263,7 @@ const AuthProvider = ({ children }) => {
     signOutUser,
     resetPassword,
     refreshUser,
+    sendVerificationEmail,
   };
 
   return (

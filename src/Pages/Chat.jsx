@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, useRef } from "react";
 import axios from "axios";
+import { getAuthToken } from "../utils/api";
 import {
   Send,
   Plus,
@@ -17,6 +18,7 @@ const Chat = () => {
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
   const [messageInput, setMessageInput] = useState("");
+  const [attachment, setAttachment] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [showNewChatModal, setShowNewChatModal] = useState(false);
@@ -92,7 +94,8 @@ const Chat = () => {
         "http://localhost:3000/messages/conversations",
         {
           params: { userEmail: user.email },
-        }
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        },
       );
       setConversations(response.data);
     } catch (err) {
@@ -106,7 +109,8 @@ const Chat = () => {
         "http://localhost:3000/messages/conversation",
         {
           params: { userEmail, otherEmail },
-        }
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        },
       );
       setMessages(response.data);
     } catch (err) {
@@ -116,9 +120,33 @@ const Chat = () => {
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
-    if (!messageInput.trim() || !selectedConversation) return;
+    if ((!messageInput.trim() && !attachment) || !selectedConversation) return;
 
     setLoading(true);
+
+    let attachmentUrl = null;
+    if (attachment) {
+      // Upload attachment to server
+      const formData = new FormData();
+      formData.append("attachment", attachment);
+      try {
+        const uploadRes = await axios.post(
+          "http://localhost:3000/messages/upload",
+          formData,
+          {
+            headers: {
+              Authorization: `Bearer ${getAuthToken()}`,
+              "Content-Type": "multipart/form-data",
+            },
+          },
+        );
+        attachmentUrl = uploadRes.data.filePath;
+      } catch (err) {
+        alert("Failed to upload attachment");
+        setLoading(false);
+        return;
+      }
+    }
 
     const messageData = {
       senderEmail: user.email,
@@ -126,7 +154,18 @@ const Chat = () => {
       recipientEmail: selectedConversation.otherEmail,
       recipientName: selectedConversation.otherName,
       message: messageInput,
+      attachment: attachmentUrl,
     };
+
+    // Optimistically add message to UI
+    setMessages((prev) => [
+      ...prev,
+      {
+        ...messageData,
+        timestamp: new Date().toISOString(),
+        read: false,
+      },
+    ]);
 
     // Emit via Socket.io
     socketRef.current.emit("message:send", messageData);
@@ -136,6 +175,7 @@ const Chat = () => {
     });
 
     setMessageInput("");
+    setAttachment(null);
     setLoading(false);
   };
 
@@ -188,7 +228,7 @@ const Chat = () => {
   };
 
   const filteredConversations = conversations.filter((conv) =>
-    conv.otherName.toLowerCase().includes(searchQuery.toLowerCase())
+    conv.otherName.toLowerCase().includes(searchQuery.toLowerCase()),
   );
 
   const isUserOnline = onlineUsers.includes(selectedConversation?.otherEmail);
@@ -338,14 +378,59 @@ const Chat = () => {
                           : "bg-white text-gray-800 rounded-bl-none border-2 border-gray-100"
                       }`}
                     >
-                      <div className="flex items-center gap-2">
-                        <p>{msg.message}</p>
-                        {msg.senderEmail === user.email &&
-                          (msg.read ? (
-                            <CheckCheck size={14} />
-                          ) : (
-                            <Check size={14} />
-                          ))}
+                      <div className="flex flex-col gap-2">
+                        <span className="flex items-center gap-2">
+                          <p>{msg.message}</p>
+                          {msg.senderEmail === user.email &&
+                            (msg.read ? (
+                              <CheckCheck size={14} />
+                            ) : (
+                              <Check size={14} />
+                            ))}
+                        </span>
+                        {msg.attachment && (
+                          <div className="mt-2">
+                            {msg.attachment.match(
+                              /\.(jpg|jpeg|png|gif|webp)$/i,
+                            ) ? (
+                              <img
+                                src={
+                                  msg.attachment.startsWith("/uploads/")
+                                    ? `http://localhost:3000${msg.attachment}`
+                                    : msg.attachment
+                                }
+                                alt="attachment"
+                                className="max-h-48 rounded border border-gray-200"
+                              />
+                            ) : msg.attachment.match(/\.(pdf)$/i) ? (
+                              <a
+                                href={
+                                  msg.attachment.startsWith("/uploads/")
+                                    ? `http://localhost:3000${msg.attachment}`
+                                    : msg.attachment
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                View PDF
+                              </a>
+                            ) : (
+                              <a
+                                href={
+                                  msg.attachment.startsWith("/uploads/")
+                                    ? `http://localhost:3000${msg.attachment}`
+                                    : msg.attachment
+                                }
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 underline"
+                              >
+                                Download Attachment
+                              </a>
+                            )}
+                          </div>
+                        )}
                       </div>
                       <p className="text-xs mt-1 opacity-70">
                         {new Date(msg.timestamp).toLocaleTimeString()}
@@ -375,8 +460,19 @@ const Chat = () => {
             <form
               onSubmit={handleSendMessage}
               className="p-4 border-t border-gray-200"
+              encType="multipart/form-data"
             >
-              <div className="flex gap-2">
+              <div className="flex gap-2 items-center">
+                <label className="cursor-pointer flex items-center">
+                  <Plus size={22} className="text-[#67cffe] mr-1" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: "none" }}
+                    onChange={(e) => setAttachment(e.target.files[0])}
+                    disabled={loading}
+                  />
+                </label>
                 <input
                   type="text"
                   value={messageInput}
@@ -387,12 +483,26 @@ const Chat = () => {
                 />
                 <button
                   type="submit"
-                  disabled={loading || !messageInput.trim()}
+                  disabled={loading || (!messageInput.trim() && !attachment)}
                   className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-full transition-all duration-300 flex items-center gap-2"
                 >
                   <Send size={18} />
                 </button>
               </div>
+              {attachment && (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600">
+                    {attachment.name}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setAttachment(null)}
+                    className="text-red-500 text-xs"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
             </form>
           </>
         ) : (

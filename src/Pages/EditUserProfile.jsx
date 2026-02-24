@@ -24,6 +24,7 @@ const EditUserProfile = () => {
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
 
@@ -56,6 +57,10 @@ const EditUserProfile = () => {
                 ? userData.img
                 : `${serverURL}${userData.img}`,
             );
+            setImageError(false);
+          } else {
+            setImagePreview(null);
+            setImageError(false);
           }
         } catch (error) {
           console.error("Error fetching user data:", error);
@@ -84,7 +89,13 @@ const EditUserProfile = () => {
     if (file) {
       setImageFile(file);
       setImagePreview(URL.createObjectURL(file));
+      setImageError(false);
     }
+  };
+
+  const handleImageError = () => {
+    console.error("Failed to load profile image:", imagePreview);
+    setImageError(true);
   };
 
   const handleSubmit = async (e) => {
@@ -177,10 +188,11 @@ const EditUserProfile = () => {
             {/* Profile Image */}
             <div className="flex flex-col items-center mb-6">
               <div className="relative">
-                {imagePreview ? (
+                {imagePreview && !imageError ? (
                   <img
                     src={imagePreview}
                     alt="Profile"
+                    onError={handleImageError}
                     className="w-32 h-32 rounded-full object-cover border-4 border-indigo-500"
                   />
                 ) : (

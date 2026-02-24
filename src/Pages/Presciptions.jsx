@@ -1,13 +1,99 @@
+// (Stray code removed)
 import { useContext, useRef, useState, useEffect } from "react";
-import { Upload, Trash2, Download } from "lucide-react";
+import { Upload, Trash2, Download, FileText } from "lucide-react";
+import PrescriptionCard from "../Components/Shared/PrescriptionCard";
 import AuthContext from "../Components/Context/AuthContext";
 import { serverURL } from "../config";
+import { authGet } from "../utils/api";
+import html2canvas from "html2canvas";
+import jsPDF from "jspdf";
 
 const Prescription = () => {
+  // Download digital prescription as PDF (hides action buttons)
+  const downloadDigitalPrescriptionPDF = async (prescription) => {
+    console.log("Starting PDF download for prescription:", prescription._id);
+    setDownloading(prescription._id);
+
+    function stripClassNames(element) {
+      if (element.removeAttribute) element.removeAttribute("class");
+      Array.from(element.children).forEach(stripClassNames);
+    }
+
+    try {
+      const prescriptionElement = document.getElementById(
+        `digital-prescription-${prescription._id}`,
+      );
+
+      if (!prescriptionElement) {
+        alert("Prescription element not found. Please try again.");
+        setDownloading(null);
+        return;
+      }
+
+      // Hide action buttons
+      const actionDiv = prescriptionElement.querySelector(
+        'div[style*="justify-content: flex-end"], .flex.justify-end',
+      );
+      let prevDisplay = null;
+      if (actionDiv) {
+        prevDisplay = actionDiv.style.display;
+        actionDiv.style.display = "none";
+      }
+
+      // Clone and strip all classNames
+      const clone = prescriptionElement.cloneNode(true);
+      stripClassNames(clone);
+
+      // Render in a hidden, style-free container
+      const hiddenDiv = document.createElement("div");
+      hiddenDiv.style.position = "fixed";
+      hiddenDiv.style.left = "-9999px";
+      hiddenDiv.style.top = "0";
+      hiddenDiv.style.background = "#fff";
+      hiddenDiv.appendChild(clone);
+      document.body.appendChild(hiddenDiv);
+
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
+      });
+
+      // Remove hidden container
+      document.body.removeChild(hiddenDiv);
+
+      // Restore action buttons
+      if (actionDiv) actionDiv.style.display = prevDisplay;
+
+      // Download as PDF
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({
+        orientation: "portrait",
+        unit: "px",
+        format: [canvas.width, canvas.height],
+      });
+      pdf.addImage(imgData, "PNG", 0, 0, canvas.width, canvas.height);
+      const fileName = `Prescription_${prescription.doctorName}_${new Date(prescription.createdAt).toLocaleDateString().replace(/\//g, "-")}.pdf`;
+      pdf.save(fileName);
+
+      console.log("PDF downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      alert(`Failed to download prescription: ${error.message}`);
+    } finally {
+      setDownloading(null);
+    }
+  };
   const { user } = useContext(AuthContext);
   const [prescriptions, setPrescriptions] = useState([]);
+  const [digitalPrescriptions, setDigitalPrescriptions] = useState([]);
   const [doctorName, setDoctorName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(null);
   const [selectedFiles, setSelectedFiles] = useState([]);
   const [modalImg, setModalImg] = useState(null);
   const [userUid, setUserUid] = useState(null);
@@ -42,7 +128,7 @@ const Prescription = () => {
 
   const toggleSelectForDelete = (id) => {
     setSelectedForDelete((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   };
 
@@ -52,42 +138,109 @@ const Prescription = () => {
 
   const handleRemoveStoredFile = async (id) => {
     try {
-      const res = await fetch(`${serverURL}/prescriptions/${id}`, {
-        method: "DELETE",
+      const prescriptionElement = document.getElementById(
+        `digital-prescription-${prescription._id}`,
+      );
+
+      if (!prescriptionElement) {
+        console.error(
+          "Prescription element not found with ID:",
+          `digital-prescription-${prescription._id}`,
+        );
+        alert("Prescription element not found. Please try again.");
+        setDownloading(null);
+        return;
+      }
+
+      // Clone and strip all classNames
+      const clone = prescriptionElement.cloneNode(true);
+      stripClassNames(clone);
+
+      // Render in a hidden, style-free container
+      const hiddenDiv = document.createElement("div");
+      hiddenDiv.style.position = "fixed";
+      hiddenDiv.style.left = "-9999px";
+      hiddenDiv.style.top = "0";
+      hiddenDiv.style.background = "#fff";
+      hiddenDiv.appendChild(clone);
+      document.body.appendChild(hiddenDiv);
+
+      const canvas = await html2canvas(clone, {
+        scale: 2,
+        useCORS: true,
+        allowTaint: true,
+        logging: false,
+        backgroundColor: "#ffffff",
+        windowWidth: clone.scrollWidth,
+        windowHeight: clone.scrollHeight,
       });
-      if (!res.ok) throw new Error("Failed to delete prescription");
-      setPrescriptions((prev) => prev.filter((f) => f._id !== id));
-      setSelectedForDelete((prev) => prev.filter((x) => x !== id));
-    } catch (err) {
-      console.error(err);
-      alert("Error deleting prescription: " + err.message);
+
+      // Remove hidden container
+      document.body.removeChild(hiddenDiv);
+
+      // Download as PNG
+      const imgData = canvas.toDataURL("image/png");
+      const fileName = `Prescription_${prescription.doctorName}_${new Date(prescription.createdAt).toLocaleDateString().replace(/\//g, "-")}.png`;
+      const link = document.createElement("a");
+      link.href = imgData;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      console.log("PNG downloaded successfully!");
+    } catch (error) {
+      console.error("Error generating PNG:", error);
+      console.error("Error stack:", error.stack);
+      alert(`Failed to download prescription: ${error.message}`);
+    } finally {
+      setDownloading(null);
     }
   };
 
-  // Download selected
-  const handleDownloadSelected = async () => {
-    for (const id of selectedForDelete) {
-      const item = prescriptions.find((p) => p._id === id);
-      if (!item || !item.img) continue;
+  // Delete digital prescription
+  const deleteDigitalPrescription = async (prescriptionId) => {
+    if (!window.confirm("Are you sure you want to delete this prescription?")) {
+      return;
+    }
 
-      const imageUrl = `${serverURL}${item.img}`;
-      const fileName = `Prescription_${item.doctorName || "Unknown"}.jpg`;
+    try {
+      const token = localStorage.getItem("authToken");
+      console.log("Deleting digital prescription with ID:", prescriptionId);
+      console.log("Token exists:", !!token);
 
-      try {
-        const response = await fetch(imageUrl);
-        const blob = await response.blob();
-        const url = window.URL.createObjectURL(blob);
+      const response = await fetch(
+        `${serverURL}/digital-prescriptions/${prescriptionId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        },
+      );
 
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        window.URL.revokeObjectURL(url);
-      } catch (error) {
-        console.error("Download error:", error);
+      console.log("Delete response status:", response.status);
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
+        console.error("Delete failed with:", errorData);
+        throw new Error(
+          errorData.message ||
+            errorData.error ||
+            "Failed to delete prescription",
+        );
       }
+
+      // Remove from state
+      setDigitalPrescriptions((prev) =>
+        prev.filter((p) => p._id !== prescriptionId),
+      );
+      alert("Prescription deleted successfully");
+    } catch (error) {
+      console.error("Full error:", error);
+      alert("Failed to delete prescription: " + error.message);
     }
   };
 
@@ -107,8 +260,12 @@ const Prescription = () => {
 
     setUploading(true);
     try {
+      const token = localStorage.getItem("authToken");
       const res = await fetch(`${serverURL}/prescriptions`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
       if (!res.ok) throw new Error("Upload failed");
@@ -130,8 +287,14 @@ const Prescription = () => {
     if (!user?.email) return;
     const fetchPrescriptions = async () => {
       try {
+        const token = localStorage.getItem("authToken");
         const res = await fetch(
-          `${serverURL}/prescriptions?email=${encodeURIComponent(user.email)}`
+          `${serverURL}/prescriptions?email=${encodeURIComponent(user.email)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          },
         );
         const data = await res.json();
         setPrescriptions(Array.isArray(data) ? data : []);
@@ -141,6 +304,26 @@ const Prescription = () => {
       }
     };
     fetchPrescriptions();
+  }, [user]);
+
+  // Fetch digital prescriptions
+  useEffect(() => {
+    if (!user?.email) return;
+    const fetchDigitalPrescriptions = async () => {
+      try {
+        const response = await authGet(
+          `/digital-prescriptions?email=${encodeURIComponent(user.email)}`,
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setDigitalPrescriptions(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error("Error fetching digital prescriptions:", err);
+        setDigitalPrescriptions([]);
+      }
+    };
+    fetchDigitalPrescriptions();
   }, [user]);
 
   return (
@@ -210,6 +393,68 @@ const Prescription = () => {
         </div>
 
         {/* Display Prescriptions */}
+        {/* Digital Prescriptions Section */}
+        {digitalPrescriptions.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 flex items-center gap-2">
+              <FileText className="w-6 h-6 text-teal-600" />
+              Digital Prescriptions
+            </h2>
+            <div className="space-y-4">
+              {digitalPrescriptions.map((prescription) => (
+                <div
+                  key={prescription._id}
+                  id={`digital-prescription-${prescription._id}`}
+                >
+                  <PrescriptionCard
+                    doctorInfo={{
+                      doctorName: prescription.doctorName,
+                      doctorSpecialty: prescription.doctorSpecialty,
+                      chamber: prescription.chamber,
+                      phone: prescription.chamberPhone,
+                    }}
+                    patient={{
+                      name: prescription.patientName || "",
+                      uid: prescription.patientUid || "",
+                    }}
+                    medicines={prescription.medicines}
+                    createdAt={prescription.createdAt}
+                    showSignature={true}
+                    showFooter={true}
+                    inlineStyles={true}
+                  />
+                  {/* Action Buttons */}
+                  <div className="mt-4 pt-4 border-t flex justify-end gap-3">
+                    <button
+                      onClick={() =>
+                        deleteDigitalPrescription(prescription._id)
+                      }
+                      className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete
+                    </button>
+                    <button
+                      onClick={() =>
+                        downloadDigitalPrescriptionPDF(prescription)
+                      }
+                      disabled={downloading === prescription._id}
+                      className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download className="w-4 h-4" />
+                      {downloading === prescription._id
+                        ? "Downloading..."
+                        : "Download PDF"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Uploaded Prescription Images */}
+        <h2 className="text-2xl font-bold mb-4">Uploaded Prescriptions</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {prescriptions.length === 0 ? (
             <p>No prescriptions uploaded yet.</p>

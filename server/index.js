@@ -7,6 +7,7 @@ const path = require("path");
 const fs = require("fs");
 const http = require("http");
 const socketIO = require("socket.io");
+const jwt = require("jsonwebtoken");
 
 dotenv.config();
 const app = express();
@@ -17,6 +18,30 @@ const io = socketIO(server, {
     credentials: true,
   },
 });
+
+// JWT Secret
+const JWT_SECRET = process.env.JWT_SECRET || "fallback_secret_key";
+
+// ===== JWT Middleware =====
+const verifyJWT = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized: No token provided" });
+  }
+
+  const token = authHeader.split(" ")[1];
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // Attach user info to request
+    next();
+  } catch {
+    return res
+      .status(403)
+      .json({ error: "Forbidden: Invalid or expired token" });
+  }
+};
 
 app.use(express.json());
 const port = process.env.PORT || 3000;
@@ -51,16 +76,18 @@ const upload = multer({ storage });
 
 // ===== MongoDB setup =====
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.1atxbvs.mongodb.net/?retryWrites=true&w=majority`;
-const client = new MongoClient(uri, {
-  serverApi: { version: ServerApiVersion.v1 },
-});
-
 let userCollection,
   userPrescription,
   userReports,
   doctorCollection,
+  doctorApplicationCollection,
   messageCollection,
-  blogCollection;
+  blogCollection,
+  digitalPrescriptionCollection,
+  appointmentCollection;
+const client = new MongoClient(uri, {
+  serverApi: { version: ServerApiVersion.v1 },
+});
 
 async function connectDB() {
   try {
@@ -70,13 +97,186 @@ async function connectDB() {
     userPrescription = db.collection("userPrescription");
     userReports = db.collection("userReports");
     doctorCollection = db.collection("doctorCollection");
+    doctorApplicationCollection = db.collection("doctorApplications");
     messageCollection = db.collection("messages");
     blogCollection = db.collection("blogs");
+    digitalPrescriptionCollection = db.collection("digitalPrescriptions");
+    appointmentCollection = db.collection("appointments");
     console.log("✅ Connected to MongoDB!");
   } catch (err) {
     console.error("❌ MongoDB connection failed:", err.message);
   }
 }
+// ===== Appointment Endpoints =====
+// Delete appointment (user cancel before doctor accepts)
+app.delete("/appointments/:id", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Only allow delete if status is pending
+    const result = await appointmentCollection.deleteOne({
+      _id: new ObjectId(id),
+      status: "pending",
+    });
+    if (result.deletedCount === 0) {
+      return res
+        .status(400)
+        .json({
+          message: "Cannot cancel: appointment not found or already processed.",
+        });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+// Create appointment
+app.post("/appointments", verifyJWT, async (req, res) => {
+  try {
+    const {
+      doctorEmail,
+      doctorName,
+      doctorSpecialty,
+      chamber,
+      chamberAddress,
+      chamberTime,
+      patientEmail,
+      patientName,
+      appointmentTime,
+      status,
+    } = req.body;
+
+    if (!doctorEmail || !patientEmail || !appointmentTime || !chamber) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    const appointment = {
+      doctorEmail,
+      doctorName,
+      doctorSpecialty,
+      chamber,
+      chamberAddress,
+      chamberTime,
+      patientEmail,
+      patientName,
+      appointmentTime,
+      status: status || "pending",
+      createdAt: new Date(),
+    };
+
+    const result = await appointmentCollection.insertOne(appointment);
+    res
+      .status(201)
+      .json({ success: true, appointmentId: result.insertedId, appointment });
+  } catch (err) {
+    console.error("Error creating appointment:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get appointments for a doctor
+app.get("/appointments/doctor/:doctorEmail", verifyJWT, async (req, res) => {
+  try {
+    const { doctorEmail } = req.params;
+    const appointments = await appointmentCollection
+      .find({ doctorEmail })
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.json({ success: true, appointments });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get appointments for a patient
+app.get("/appointments/patient/:patientEmail", verifyJWT, async (req, res) => {
+  try {
+    const { patientEmail } = req.params;
+    const appointments = await appointmentCollection
+      .find({ patientEmail })
+      .sort({ createdAt: -1 })
+      .toArray();
+    res.json({ success: true, appointments });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Approve or reject appointment (doctor only)
+app.patch("/appointments/:id", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body; // "approved" or "rejected"
+    if (!status || !["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+    const result = await appointmentCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status } },
+    );
+    res.json({ success: true, updated: result.modifiedCount });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ===== AUTHENTICATION =====
+
+// Login endpoint - generates JWT token
+app.post("/api/login", async (req, res) => {
+  try {
+    const { email, firebaseUid } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: "Email is required" });
+    }
+
+    // Check if user exists in database
+    let user = await userCollection.findOne({ email });
+    let isDoctor = false;
+
+    // If not in user collection, check doctor collection
+    if (!user) {
+      user = await doctorCollection.findOne({ email });
+      isDoctor = true;
+    }
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      {
+        email: user.email,
+        uid: user.uid,
+        role: user.role || (isDoctor ? "doctor" : "user"),
+        firebaseUid: firebaseUid,
+      },
+      JWT_SECRET,
+      { expiresIn: "7d" }, // Token expires in 7 days
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        email: user.email,
+        name: user.name,
+        uid: user.uid,
+        role: user.role || (isDoctor ? "doctor" : "user"),
+        img: user.img,
+      },
+    });
+  } catch (err) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Verify token endpoint
+app.get("/api/verify-token", verifyJWT, (req, res) => {
+  res.json({ valid: true, user: req.user });
+});
 
 // ===== USERS =====
 
@@ -88,12 +288,20 @@ app.post("/userdata", upload.single("img"), async (req, res) => {
     // Only send relative path
     const imgPath = req.file ? `/uploads/${req.file.filename}` : null;
 
-    const lastUser = await userCollection
-      .find({})
-      .sort({ uid: -1 })
-      .limit(1)
+    console.log("📷 Creating user with image:", imgPath);
+    console.log("📁 File info:", req.file);
+
+    // Get the maximum UID by converting to numbers
+    const allUsers = await userCollection
+      .find({}, { projection: { uid: 1 } })
       .toArray();
-    const uid = lastUser.length > 0 ? lastUser[0].uid + 1 : 1;
+    let maxUid = 0;
+
+    if (allUsers.length > 0) {
+      maxUid = Math.max(...allUsers.map((u) => Number(u.uid) || 0));
+    }
+
+    const uid = maxUid + 1;
 
     const user = {
       name,
@@ -105,6 +313,7 @@ app.post("/userdata", upload.single("img"), async (req, res) => {
     };
 
     const result = await userCollection.insertOne(user);
+    console.log("✅ User created with UID:", uid, "img:", imgPath);
     res.status(201).json({ success: true, userId: result.insertedId, uid });
   } catch (err) {
     console.error("Error creating user:", err);
@@ -192,36 +401,68 @@ app.get("/doctor/:email", async (req, res) => {
   }
 });
 
+// 🔵 READ doctor by ID (GET)
+app.get("/doctors/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const doctor = await doctorCollection.findOne({ _id: new ObjectId(id) });
+    return res.json(doctor || null);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 🔵 SEARCH doctors (GET)
 app.get("/search/doctors", async (req, res) => {
   try {
     const { name, specialty } = req.query;
     let filter = {};
 
+    // Build an array of conditions to combine with $or
+    const orConditions = [];
+
+    // Add name search condition
     if (name) {
-      filter.name = { $regex: name, $options: "i" }; // Case-insensitive search
+      orConditions.push({ name: { $regex: name, $options: "i" } });
+      // Also search in chamber addresses for area/city search
+      orConditions.push({
+        "chambers.address": { $regex: name, $options: "i" },
+      });
+      orConditions.push({ "chambers.name": { $regex: name, $options: "i" } });
     }
 
+    // Add specialty search conditions
     if (specialty) {
       // Check if multiple specialties are provided (comma-separated)
       if (specialty.includes(",")) {
         const specialties = specialty.split(",").map((s) => s.trim());
-        // Match any of the specialties using $or
-        filter.$or = specialties.map((s) => ({
-          $or: [
-            { specialty: { $regex: s, $options: "i" } },
-            { doctorType: { $regex: s, $options: "i" } },
-            { specialization: { $regex: s, $options: "i" } },
-          ],
-        }));
+        // Match any of the specialties
+        specialties.forEach((s) => {
+          orConditions.push({ specialty: { $regex: s, $options: "i" } });
+          orConditions.push({ doctorType: { $regex: s, $options: "i" } });
+          orConditions.push({ specialization: { $regex: s, $options: "i" } });
+          // Also search in chamber addresses
+          orConditions.push({
+            "chambers.address": { $regex: s, $options: "i" },
+          });
+        });
       } else {
-        // Single specialty search - search in specialty, doctorType, and specialization fields
-        filter.$or = [
-          { specialty: { $regex: specialty, $options: "i" } },
-          { doctorType: { $regex: specialty, $options: "i" } },
-          { specialization: { $regex: specialty, $options: "i" } },
-        ];
+        // Single specialty search
+        orConditions.push({ specialty: { $regex: specialty, $options: "i" } });
+        orConditions.push({ doctorType: { $regex: specialty, $options: "i" } });
+        orConditions.push({
+          specialization: { $regex: specialty, $options: "i" },
+        });
+        // Also search in chamber addresses
+        orConditions.push({
+          "chambers.address": { $regex: specialty, $options: "i" },
+        });
       }
+    }
+
+    // Combine all conditions with $or (matches if ANY condition is true)
+    if (orConditions.length > 0) {
+      filter.$or = orConditions;
     }
 
     // Only return from doctorCollection (not userCollection)
@@ -241,7 +482,7 @@ app.get("/search/doctors", async (req, res) => {
 });
 
 // 🟡 UPDATE doctor by email (PUT)
-app.put("/doctor/:email", async (req, res) => {
+app.put("/doctor/:email", verifyJWT, async (req, res) => {
   try {
     const updated = await doctorCollection.findOneAndUpdate(
       { email: req.params.email },
@@ -271,32 +512,42 @@ app.put("/doctor/:email", async (req, res) => {
 });
 
 // 🟣 UPLOAD doctor image
-app.post("/upload-doctor-image", upload.single("image"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image uploaded" });
-    }
+app.post(
+  "/upload-doctor-image",
+  verifyJWT,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
 
-    const imagePath = `/uploads/${req.file.filename}`;
-    res.json({ success: true, imagePath });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+      const imagePath = `/uploads/${req.file.filename}`;
+      res.json({ success: true, imagePath });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
 
 // 🟣 UPLOAD user image
-app.post("/upload-user-image", upload.single("image"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ message: "No image uploaded" });
-    }
+app.post(
+  "/upload-user-image",
+  verifyJWT,
+  upload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No image uploaded" });
+      }
 
-    const imagePath = `/uploads/${req.file.filename}`;
-    res.json({ success: true, imagePath });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
+      const imagePath = `/uploads/${req.file.filename}`;
+      res.json({ success: true, imagePath });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
 
 // 🟣 Sync doctor images from userCollection to doctorCollection
 app.post("/sync-doctor-images", async (req, res) => {
@@ -322,7 +573,7 @@ app.post("/sync-doctor-images", async (req, res) => {
 });
 
 // 🟣 UPDATE user profile
-app.put("/user/:email", async (req, res) => {
+app.put("/user/:email", verifyJWT, async (req, res) => {
   try {
     const { email } = req.params;
     const updateData = req.body;
@@ -345,39 +596,202 @@ app.put("/user/:email", async (req, res) => {
   }
 });
 
-// ===== PRESCRIPTIONS =====
+// ===== ADMIN STATISTICS =====
 
-// Upload prescriptions
-app.post("/prescriptions", upload.array("files"), async (req, res) => {
+// Get admin statistics
+app.get("/admin/statistics", verifyJWT, async (req, res) => {
   try {
-    const { doctorName, email, uid } = req.body;
+    // Count total users (role: "user")
+    const totalUsers = await userCollection.countDocuments({ role: "user" });
 
-    if (!email || !doctorName || !uid)
-      return res
-        .status(400)
-        .json({ message: "Email, doctorName, and uid are required" });
+    // Count total doctors (role: "doctor")
+    const totalDoctors = await userCollection.countDocuments({
+      role: "doctor",
+    });
 
-    if (!req.files || req.files.length === 0)
-      return res.status(400).json({ message: "No files uploaded" });
+    // Count pending applications
+    const pendingApplications =
+      await doctorApplicationCollection.countDocuments({ status: "pending" });
 
-    const docs = req.files.map((file) => ({
-      email,
-      uid: parseInt(uid),
-      doctorName,
-      img: `/uploads/${file.filename}`,
-      createdAt: new Date(),
-    }));
+    // Count total admins (role: "admin")
+    const totalAdmins = await userCollection.countDocuments({ role: "admin" });
 
-    await userPrescription.insertMany(docs);
-    res.status(201).json({ success: true, data: docs });
+    res.json({
+      totalUsers,
+      totalDoctors,
+      pendingApplications,
+      totalAdmins,
+    });
   } catch (err) {
-    console.error("Error uploading prescriptions:", err);
-    res.status(500).json({ message: err.message });
+    console.error("Error fetching statistics:", err);
+    res.status(500).json({ error: err.message });
   }
 });
 
+// ===== DOCTOR APPLICATIONS =====
+
+// Submit doctor application
+app.post("/doctor-applications", verifyJWT, async (req, res) => {
+  try {
+    const applicationData = req.body;
+
+    // Check if user already has a pending or approved application
+    const existingApplication = await doctorApplicationCollection.findOne({
+      email: applicationData.email,
+      status: { $in: ["pending", "approved"] },
+    });
+
+    if (existingApplication) {
+      return res.status(400).json({
+        message: "You already have a pending or approved application",
+      });
+    }
+
+    const result = await doctorApplicationCollection.insertOne(applicationData);
+    res.status(201).json({
+      success: true,
+      message: "Application submitted successfully",
+      applicationId: result.insertedId,
+    });
+  } catch (err) {
+    console.error("Error submitting application:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get doctor applications (admin only)
+app.get("/doctor-applications", verifyJWT, async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = status ? { status } : {};
+
+    const applications = await doctorApplicationCollection
+      .find(filter)
+      .sort({ appliedAt: -1 })
+      .toArray();
+
+    res.json(applications);
+  } catch (err) {
+    console.error("Error fetching applications:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Approve doctor application (admin only)
+app.post("/doctor-applications/:id/approve", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+
+    // Update application status
+    await doctorApplicationCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status: "approved",
+          approvedAt: new Date().toISOString(),
+        },
+      },
+    );
+
+    // Update user role to doctor
+    await userCollection.updateOne(
+      { email: email },
+      { $set: { role: "doctor" } },
+    );
+
+    // Get application data to create doctor profile
+    const application = await doctorApplicationCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    // Create doctor profile if it doesn't exist
+    const existingDoctor = await doctorCollection.findOne({ email: email });
+    if (!existingDoctor) {
+      await doctorCollection.insertOne({
+        name: application.name,
+        email: application.email,
+        phone: application.phone,
+        specialty: application.specialization,
+        qualification: application.qualification,
+        experience: application.experience,
+        hospital: application.hospital,
+        licenseNumber: application.licenseNumber,
+        aboutMe: application.aboutMe,
+        createdAt: new Date().toISOString(),
+      });
+    }
+
+    res.json({
+      success: true,
+      message: "Application approved and user promoted to doctor",
+    });
+  } catch (err) {
+    console.error("Error approving application:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Reject doctor application (admin only)
+app.post("/doctor-applications/:id/reject", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    await doctorApplicationCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          status: "rejected",
+          rejectedAt: new Date().toISOString(),
+        },
+      },
+    );
+
+    res.json({ success: true, message: "Application rejected" });
+  } catch (err) {
+    console.error("Error rejecting application:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== PRESCRIPTIONS =====
+
+// Upload prescriptions
+app.post(
+  "/prescriptions",
+  verifyJWT,
+  upload.array("files"),
+  async (req, res) => {
+    try {
+      const { doctorName, email, uid } = req.body;
+
+      if (!email || !doctorName || !uid)
+        return res
+          .status(400)
+          .json({ message: "Email, doctorName, and uid are required" });
+
+      if (!req.files || req.files.length === 0)
+        return res.status(400).json({ message: "No files uploaded" });
+
+      const docs = req.files.map((file) => ({
+        email,
+        uid: parseInt(uid),
+        doctorName,
+        img: `/uploads/${file.filename}`,
+        createdAt: new Date(),
+      }));
+
+      await userPrescription.insertMany(docs);
+      res.status(201).json({ success: true, data: docs });
+    } catch (err) {
+      console.error("Error uploading prescriptions:", err);
+      res.status(500).json({ message: err.message });
+    }
+  },
+);
+
 // Fetch prescriptions (by email or uid)
-app.get("/prescriptions", async (req, res) => {
+app.get("/prescriptions", verifyJWT, async (req, res) => {
   try {
     const { email, uid } = req.query;
     if (!email && !uid)
@@ -397,7 +811,7 @@ app.get("/prescriptions", async (req, res) => {
 });
 
 // Delete prescription
-app.delete("/prescriptions/:id", async (req, res) => {
+app.delete("/prescriptions/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await userPrescription.findOne({ _id: new ObjectId(id) });
@@ -418,11 +832,141 @@ app.delete("/prescriptions/:id", async (req, res) => {
   }
 });
 
+// ===== DIGITAL PRESCRIPTIONS =====
+
+// Create digital prescription
+app.post("/digital-prescriptions", verifyJWT, async (req, res) => {
+  try {
+    console.log("📝 Digital prescription request received");
+    console.log("User from token:", req.user);
+    console.log("Request body:", req.body);
+
+    const {
+      patientEmail,
+      patientName,
+      doctorEmail,
+      doctorName,
+      doctorSpecialty,
+      chamber,
+      chamberPhone,
+      medicines,
+    } = req.body;
+
+    if (!patientEmail || !doctorEmail || !medicines) {
+      console.error("❌ Missing required fields:", {
+        patientEmail,
+        doctorEmail,
+        medicines,
+      });
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (!Array.isArray(medicines) || medicines.length === 0) {
+      console.error("❌ Invalid medicines array");
+      return res
+        .status(400)
+        .json({ message: "At least one medicine is required" });
+    }
+
+    const prescription = {
+      patientEmail,
+      patientName,
+      doctorEmail,
+      doctorName,
+      doctorSpecialty,
+      chamber,
+      chamberPhone,
+      medicines,
+      createdAt: new Date(),
+    };
+
+    console.log("💾 Saving prescription:", prescription);
+
+    const result = await digitalPrescriptionCollection.insertOne(prescription);
+
+    console.log("✅ Prescription saved successfully:", result.insertedId);
+
+    res.status(201).json({
+      success: true,
+      prescriptionId: result.insertedId,
+      prescription,
+    });
+  } catch (err) {
+    console.error("❌ Error creating digital prescription:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get digital prescriptions for a patient
+app.get("/digital-prescriptions", verifyJWT, async (req, res) => {
+  try {
+    const { email } = req.query;
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const filter = { patientEmail: email };
+
+    const prescriptions = await digitalPrescriptionCollection
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    res.json(prescriptions);
+  } catch (err) {
+    console.error("Error fetching digital prescriptions:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Get single digital prescription by ID
+app.get("/digital-prescriptions/:id", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const prescription = await digitalPrescriptionCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!prescription) {
+      return res.status(404).json({ message: "Prescription not found" });
+    }
+
+    res.json(prescription);
+  } catch (err) {
+    console.error("Error fetching prescription:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete digital prescription (no auth for dev)
+app.delete("/digital-prescriptions/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Validate ObjectId
+    if (!id || !/^[a-fA-F0-9]{24}$/.test(id)) {
+      return res.status(400).json({ message: "Invalid prescription ID" });
+    }
+    const prescription = await digitalPrescriptionCollection.findOne({
+      _id: new ObjectId(id),
+    });
+
+    if (!prescription) {
+      return res.status(404).json({ message: "Prescription not found" });
+    }
+
+    await digitalPrescriptionCollection.deleteOne({ _id: new ObjectId(id) });
+    res.json({ success: true, message: "Prescription deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting digital prescription:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ===== REPORTS =====
 // ===== Xrays =====
 
 // Upload xrays
-app.post("/xrays", upload.array("files"), async (req, res) => {
+app.post("/xrays", verifyJWT, upload.array("files"), async (req, res) => {
   try {
     const { doctorName, email, uid } = req.body;
 
@@ -451,7 +995,7 @@ app.post("/xrays", upload.array("files"), async (req, res) => {
 });
 
 // Fetch prescriptions (by email or uid)
-app.get("/xrays", async (req, res) => {
+app.get("/xrays", verifyJWT, async (req, res) => {
   try {
     const { email, uid } = req.query;
     if (!email && !uid)
@@ -471,7 +1015,7 @@ app.get("/xrays", async (req, res) => {
 });
 
 // Delete prescription
-app.delete("/xrays/:id", async (req, res) => {
+app.delete("/xrays/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await userPrescription.findOne({ _id: new ObjectId(id) });
@@ -494,7 +1038,7 @@ app.delete("/xrays/:id", async (req, res) => {
 // ===== REPORTS =====
 
 // Upload reports
-app.post("/reports", upload.array("files"), async (req, res) => {
+app.post("/reports", verifyJWT, upload.array("files"), async (req, res) => {
   try {
     const { doctorName, email, uid } = req.body;
 
@@ -523,7 +1067,7 @@ app.post("/reports", upload.array("files"), async (req, res) => {
 });
 
 // Fetch reports (by email or uid)
-app.get("/reports", async (req, res) => {
+app.get("/reports", verifyJWT, async (req, res) => {
   try {
     const { email, uid } = req.query;
     if (!email && !uid)
@@ -543,7 +1087,7 @@ app.get("/reports", async (req, res) => {
 });
 
 // Delete report
-app.delete("/reports/:id", async (req, res) => {
+app.delete("/reports/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const doc = await userReports.findOne({ _id: new ObjectId(id) });
@@ -564,14 +1108,52 @@ app.delete("/reports/:id", async (req, res) => {
 });
 
 // ===== MESSAGING SYSTEM =====
+// Upload chat attachment (image/pdf)
+app.post(
+  "/messages/upload",
+  verifyJWT,
+  upload.single("attachment"),
+  async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+      // Only allow image files
+      const allowedTypes = [
+        "image/jpeg",
+        "image/png",
+        "image/gif",
+        "image/webp",
+        "image/jpg",
+      ];
+      if (!allowedTypes.includes(req.file.mimetype)) {
+        // Delete the uploaded file if not allowed
+        fs.unlinkSync(req.file.path);
+        return res
+          .status(400)
+          .json({ message: "Only image files are allowed" });
+      }
+      const filePath = `/uploads/${req.file.filename}`;
+      res.json({ success: true, filePath });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
 
 // Send a message
-app.post("/messages", async (req, res) => {
+app.post("/messages", verifyJWT, async (req, res) => {
   try {
-    const { senderEmail, senderName, recipientEmail, recipientName, message } =
-      req.body;
+    const {
+      senderEmail,
+      senderName,
+      recipientEmail,
+      recipientName,
+      message,
+      attachment,
+    } = req.body;
 
-    if (!senderEmail || !recipientEmail || !message) {
+    if (!senderEmail || !recipientEmail || (!message && !attachment)) {
       return res.status(400).json({ message: "Missing required fields" });
     }
 
@@ -581,6 +1163,7 @@ app.post("/messages", async (req, res) => {
       recipientEmail,
       recipientName: recipientName || "Unknown",
       message,
+      attachment: attachment || null,
       timestamp: new Date(),
       read: false,
     };
@@ -596,7 +1179,7 @@ app.post("/messages", async (req, res) => {
 });
 
 // Fetch conversation between two users
-app.get("/messages/conversation", async (req, res) => {
+app.get("/messages/conversation", verifyJWT, async (req, res) => {
   try {
     const { userEmail, otherEmail } = req.query;
 
@@ -624,7 +1207,7 @@ app.get("/messages/conversation", async (req, res) => {
 });
 
 // Fetch all conversations for a user
-app.get("/messages/conversations", async (req, res) => {
+app.get("/messages/conversations", verifyJWT, async (req, res) => {
   try {
     const { userEmail } = req.query;
 
@@ -674,7 +1257,7 @@ app.get("/messages/conversations", async (req, res) => {
 });
 
 // Mark message as read
-app.put("/messages/:id/read", async (req, res) => {
+app.put("/messages/:id/read", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await messageCollection.findOneAndUpdate(
@@ -843,6 +1426,7 @@ io.on("connection", (socket) => {
         recipientEmail,
         recipientName,
         message,
+        attachment,
       } = data;
 
       // Save to database
@@ -852,6 +1436,7 @@ io.on("connection", (socket) => {
         recipientEmail,
         recipientName,
         message,
+        attachment: attachment || null,
         timestamp: new Date(),
         read: false,
       };
@@ -905,5 +1490,9 @@ io.on("connection", (socket) => {
 });
 
 // ===== Start server =====
-connectDB();
-server.listen(port, () => console.log(`✅ Server running at ${BASE_URL}`));
+async function startServer() {
+  await connectDB();
+  server.listen(port, () => console.log(`✅ Server running at ${BASE_URL}`));
+}
+
+startServer();
