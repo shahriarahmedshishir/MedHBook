@@ -14,6 +14,11 @@ const DoctorProfile = () => {
   const navigate = useNavigate();
   const { doctor } = location.state || {};
 
+  console.log("=== DOCTOR PROFILE LOADED ===");
+  console.log("Doctor object:", doctor);
+  console.log("Doctor email:", doctor?.email);
+  console.log("Doctor name:", doctor?.name);
+
   if (!doctor) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -202,9 +207,25 @@ const DoctorProfile = () => {
             {/* Contact Button */}
             <button
               onClick={() => {
-                // Navigate to chat or messaging
-                // For now, just navigate to chat page
-                window.location.href = "/chat";
+                // Check if email exists before navigating
+                if (!doctor.email) {
+                  console.error("Doctor email not found:", doctor);
+                  alert("Unable to contact this doctor - no email found");
+                  return;
+                }
+
+                console.log("Navigating to chat with:", {
+                  doctorEmail: doctor.email,
+                  doctorName: doctor.name,
+                });
+
+                // Navigate to chat with doctor info passed
+                navigate("/chat", {
+                  state: {
+                    doctorEmail: doctor.email,
+                    doctorName: doctor.name,
+                  },
+                });
               }}
               className="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-3 rounded-lg transition duration-300"
             >

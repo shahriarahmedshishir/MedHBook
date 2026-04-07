@@ -69,12 +69,12 @@ const DoctorAppointments = () => {
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Fixed Header */}
+    <div className="flex flex-col bg-gray-50">
+      {/* Header */}
       <Header />
 
-      {/* Scrollable Middle */}
-      <main className="flex-1 overflow-y-auto pt-16 pb-16">
+      {/* Content — full viewport height */}
+      <main className="min-h-screen overflow-y-auto">
         <div className="p-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-6 text-[#007b8f]">
             My Appointments
@@ -114,6 +114,13 @@ const DoctorAppointments = () => {
 
                   <div className="text-sm text-gray-600">
                     Chamber: <span className="font-medium">{appt.chamber}</span>
+                  </div>
+
+                  <div className="text-sm text-gray-600">
+                    Date:{" "}
+                    <span className="font-medium">
+                      {new Date(appt.appointmentDate).toLocaleDateString()}
+                    </span>
                   </div>
 
                   <div className="text-sm text-gray-600">

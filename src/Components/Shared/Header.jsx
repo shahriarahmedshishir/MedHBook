@@ -12,6 +12,7 @@ import {
   ChevronDown,
   Home,
   CalendarCheck,
+  KeyRound,
 } from "lucide-react";
 import AuthContext from "../Context/AuthContext";
 
@@ -29,6 +30,8 @@ const Header = () => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [secretCode, setSecretCode] = useState("");
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
   const dropdownRef = useRef(null);
   const mobileRef = useRef(null);
   const hasRefreshed = useRef(false); // Track if we've done initial refresh
@@ -84,6 +87,52 @@ const Header = () => {
       };
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  // Fetch secret code when dropdown opens
+  useEffect(() => {
+    if (dropdownOpen && user?.role === "user" && !secretCode) {
+      const fetchSecretCode = async () => {
+        try {
+          const token = localStorage.getItem("authToken");
+          const response = await fetch(
+            `${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}/patient/me/secret-code`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          const data = await response.json();
+          if (data.secretCode) {
+            setSecretCode(data.secretCode);
+          }
+        } catch (err) {
+          console.error("Error fetching secret code:", err);
+        }
+      };
+      fetchSecretCode();
+    }
+  }, [dropdownOpen, user?.role, secretCode]);
+
+  const handleRegenerateCode = async () => {
+    try {
+      setRegeneratingCode(true);
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}/patient/me/secret-code/regenerate`,
+        {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      const data = await response.json();
+      if (data.secretCode) {
+        setSecretCode(data.secretCode);
+      }
+    } catch (err) {
+      console.error("Error regenerating code:", err);
+    } finally {
+      setRegeneratingCode(false);
     }
   };
 
@@ -308,6 +357,36 @@ const Header = () => {
 
                   {/* Menu Items */}
                   <div className="py-2">
+                    {/* Secret Code Section for Patients */}
+                    {user.role === "user" && secretCode && (
+                      <>
+                        <div className="px-4 py-3 bg-blue-50 border-b border-blue-200 rounded-lg mx-2">
+                          <p className="text-xs font-semibold text-blue-700 mb-2">
+                            🔐 Your Privacy Code:
+                          </p>
+                          <div className="flex items-center gap-2">
+                            <div className="flex-1">
+                              <p className="text-lg font-bold text-blue-600 font-mono tracking-widest text-center bg-white px-2 py-1 rounded border border-blue-300">
+                                {secretCode}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={handleRegenerateCode}
+                              disabled={regeneratingCode}
+                              className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white text-xs font-semibold rounded transition"
+                              title="Generate new code (refreshes daily at 12 AM)"
+                            >
+                              {regeneratingCode ? "..." : "🔄"}
+                            </button>
+                          </div>
+                          <p className="text-xs text-blue-600 mt-1">
+                            Refreshes daily at 12 AM
+                          </p>
+                        </div>
+                      </>
+                    )}
+
                     {(user.role === "doctor" ||
                       user.role === "admin" ||
                       isAdmin) && (
@@ -341,6 +420,20 @@ const Header = () => {
                         </span>
                       </button>
                     )}
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigate("/change-password");
+                        setDropdownOpen(false);
+                      }}
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-[#304d5d] hover:bg-gradient-to-r hover:from-[#67cffe]/20 hover:to-[#67cffe]/5 transition-all duration-200 group"
+                    >
+                      <KeyRound className="w-4 h-4 text-[#67cffe] group-hover:scale-110 transition-transform duration-200" />
+                      <span className="group-hover:translate-x-1 transition-transform duration-200">
+                        Change Password
+                      </span>
+                    </button>
 
                     <div className="h-px bg-gradient-to-r from-transparent via-[#67cffe]/30 to-transparent my-2"></div>
 
@@ -517,6 +610,18 @@ const Header = () => {
                   About Us
                 </Link>
               )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  navigate("/change-password");
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full text-left flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-[#304d5d] hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg"
+              >
+                <KeyRound size={16} />
+                Change Password
+              </button>
 
               <button
                 type="button"

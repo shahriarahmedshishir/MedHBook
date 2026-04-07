@@ -9,10 +9,12 @@ const Appointment = () => {
   const navigate = useNavigate();
   const [doctor, setDoctor] = useState(null);
   const [selectedChamber, setSelectedChamber] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
   const [selectedTime, setSelectedTime] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [appointmentError, setAppointmentError] = useState("");
 
   // Robust doctor fetch with retry
   const fetchDoctor = async () => {
@@ -41,9 +43,12 @@ const Appointment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedChamber || !selectedTime)
-      return alert("Select chamber and time");
+    if (!selectedChamber || !selectedDate || !selectedTime)
+      return alert("Select chamber, date, and time");
+
     setSubmitting(true);
+    setAppointmentError("");
+
     try {
       const chamberObj = doctor.chambers.find(
         (c) => c.name === selectedChamber,
@@ -61,20 +66,28 @@ const Appointment = () => {
         chamberTime: `${chamberObj?.startTime || ""} - ${chamberObj?.endTime || ""}`,
         patientEmail: user.email,
         patientName: user.name,
+        appointmentDate: selectedDate,
         appointmentTime: selectedTime,
       };
       console.log("Appointment.jsx: user object", user);
       console.log("Appointment.jsx: appointment payload", payload);
+
       const res = await authPost("/appointments", payload);
       const data = await res.json();
+
       if (data.success) {
         alert("Appointment request submitted!");
         navigate("/patient/appointments");
       } else {
-        alert(data.message || "Failed to submit appointment");
+        // Show conflict error or other errors
+        const errorMsg = data.message || "Failed to submit appointment";
+        setAppointmentError(errorMsg);
+        alert(errorMsg);
       }
     } catch (err) {
-      alert("Failed to submit appointment");
+      const errorMsg = "Failed to submit appointment. Please try again.";
+      setAppointmentError(errorMsg);
+      alert(errorMsg);
     } finally {
       setSubmitting(false);
     }
@@ -140,6 +153,19 @@ const Appointment = () => {
             )}
           </select>
         </div>
+
+        <div>
+          <label className="block font-medium mb-1">Select Date</label>
+          <input
+            type="date"
+            className="w-full border rounded px-3 py-2"
+            value={selectedDate}
+            onChange={(e) => setSelectedDate(e.target.value)}
+            required
+            min={new Date().toISOString().split("T")[0]}
+          />
+        </div>
+
         <div>
           <label className="block font-medium mb-1">Select Time</label>
           <input

@@ -49,6 +49,37 @@ const port = process.env.PORT || 3000;
 // ===== Base URL =====
 const BASE_URL = process.env.BASE_URL || `http://localhost:${port}`;
 
+// ===== UTILITY FUNCTIONS =====
+// Generate 6-digit secret code
+const generateSecretCode = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
+
+// Check if secret code needs regeneration and regenerate if needed
+const ensureValidSecretCode = async (user) => {
+  const now = new Date();
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // 12:00 AM today
+
+  // If code doesn't exist or was generated before today's 12 AM, regenerate
+  if (
+    !user.secretCode ||
+    !user.secretCodeGeneratedAt ||
+    new Date(user.secretCodeGeneratedAt) < todayStart
+  ) {
+    return {
+      secretCode: generateSecretCode(),
+      secretCodeGeneratedAt: new Date(),
+      needsUpdate: true,
+    };
+  }
+
+  return {
+    secretCode: user.secretCode,
+    secretCodeGeneratedAt: user.secretCodeGeneratedAt,
+    needsUpdate: false,
+  };
+};
+
 // ===== Middleware =====
 app.use(
   cors({
@@ -118,11 +149,9 @@ app.delete("/appointments/:id", verifyJWT, async (req, res) => {
       status: "pending",
     });
     if (result.deletedCount === 0) {
-      return res
-        .status(400)
-        .json({
-          message: "Cannot cancel: appointment not found or already processed.",
-        });
+      return res.status(400).json({
+        message: "Cannot cancel: appointment not found or already processed.",
+      });
     }
     res.json({ success: true });
   } catch (err) {
@@ -141,12 +170,99 @@ app.post("/appointments", verifyJWT, async (req, res) => {
       chamberTime,
       patientEmail,
       patientName,
+      appointmentDate,
       appointmentTime,
       status,
     } = req.body;
 
-    if (!doctorEmail || !patientEmail || !appointmentTime || !chamber) {
-      return res.status(400).json({ message: "Missing required fields" });
+    if (
+      !doctorEmail ||
+      !patientEmail ||
+      !appointmentDate ||
+      !appointmentTime ||
+      !chamber
+    ) {
+      return res
+        .status(400)
+        .json({ message: "Missing required fields (need date and time)" });
+    }
+
+    // Parse appointment time (format: "HH:MM")
+    const parseTime = (timeStr) => {
+      let [hours, minutes] = timeStr.split(":").map(Number);
+      return hours * 60 + minutes; // Convert to minutes for easier comparison
+    };
+
+    const appointmentTimeInMinutes = parseTime(appointmentTime);
+    const timeWindowStart = appointmentTimeInMinutes;
+    const timeWindowEnd = appointmentTimeInMinutes + 10; // 10-minute window
+
+    // Check for existing appointments on THE SAME DATE with time conflict
+    const conflictingAppointment = await appointmentCollection.findOne({
+      doctorEmail,
+      chamber,
+      appointmentDate, // Must be same date
+      $expr: {
+        $and: [
+          {
+            $gte: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      {
+                        $toInt: {
+                          $substr: ["$appointmentTime", 0, 2],
+                        },
+                      },
+                      60,
+                    ],
+                  },
+                  {
+                    $toInt: {
+                      $substr: ["$appointmentTime", 3, 2],
+                    },
+                  },
+                ],
+              },
+              timeWindowStart,
+            ],
+          },
+          {
+            $lt: [
+              {
+                $add: [
+                  {
+                    $multiply: [
+                      {
+                        $toInt: {
+                          $substr: ["$appointmentTime", 0, 2],
+                        },
+                      },
+                      60,
+                    ],
+                  },
+                  {
+                    $toInt: {
+                      $substr: ["$appointmentTime", 3, 2],
+                    },
+                  },
+                ],
+              },
+              timeWindowEnd,
+            ],
+          },
+        ],
+      },
+      status: { $in: ["pending", "confirmed"] },
+    });
+
+    if (conflictingAppointment) {
+      return res.status(409).json({
+        message:
+          "This time slot is not available on this date. Please select another time at least 10 minutes apart.",
+        conflictTime: conflictingAppointment.appointmentTime,
+      });
     }
 
     const appointment = {
@@ -158,6 +274,7 @@ app.post("/appointments", verifyJWT, async (req, res) => {
       chamberTime,
       patientEmail,
       patientName,
+      appointmentDate,
       appointmentTime,
       status: status || "pending",
       createdAt: new Date(),
@@ -196,6 +313,62 @@ app.get("/appointments/patient/:patientEmail", verifyJWT, async (req, res) => {
       .sort({ createdAt: -1 })
       .toArray();
     res.json({ success: true, appointments });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Check booked time slots for a doctor and chamber
+app.get("/appointments/booked/slots", verifyJWT, async (req, res) => {
+  try {
+    const { doctorEmail, chamber } = req.query;
+
+    if (!doctorEmail || !chamber) {
+      return res
+        .status(400)
+        .json({ message: "Missing doctorEmail or chamber" });
+    }
+
+    // Get all pending and confirmed appointments for this doctor and chamber
+    const bookedAppointments = await appointmentCollection
+      .find({
+        doctorEmail,
+        chamber,
+        status: { $in: ["pending", "confirmed"] },
+      })
+      .project({ appointmentTime: 1 })
+      .toArray();
+
+    // Extract times and calculate blocked windows (time ± 10 minutes)
+    const blockedSlots = new Set();
+    bookedAppointments.forEach((apt) => {
+      // Parse time to minutes
+      const parseTime = (timeStr) => {
+        const [time, period] = timeStr.trim().split(" ");
+        let [hours, minutes] = time.split(":").map(Number);
+        if (period === "PM" && hours !== 12) hours += 12;
+        if (period === "AM" && hours === 12) hours = 0;
+        return hours * 60 + minutes;
+      };
+
+      try {
+        const timeInMinutes = parseTime(apt.appointmentTime);
+        // Block from time-5 to time+10 (current appointment gets 5 min before and 10 min after)
+        for (let i = timeInMinutes - 5; i < timeInMinutes + 10; i++) {
+          blockedSlots.add(i);
+        }
+      } catch (e) {
+        console.error("Error parsing time:", apt.appointmentTime, e);
+      }
+    });
+
+    res.json({
+      success: true,
+      bookedAppointments,
+      blockedSlots: Array.from(blockedSlots),
+      message:
+        "Each appointment blocks a 10-minute window (5 mins before, appointment, 5 mins after)",
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -310,11 +483,23 @@ app.post("/userdata", upload.single("img"), async (req, res) => {
       role: role || "user",
       uid,
       img: imgPath,
+      secretCode: generateSecretCode(),
+      secretCodeGeneratedAt: new Date(),
     };
 
     const result = await userCollection.insertOne(user);
-    console.log("✅ User created with UID:", uid, "img:", imgPath);
-    res.status(201).json({ success: true, userId: result.insertedId, uid });
+    console.log(
+      "✅ User created with UID:",
+      uid,
+      "Secret Code:",
+      user.secretCode,
+    );
+    res.status(201).json({
+      success: true,
+      userId: result.insertedId,
+      uid,
+      secretCode: user.secretCode,
+    });
   } catch (err) {
     console.error("Error creating user:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -365,6 +550,139 @@ app.get("/user/:email", async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
+// ===== SECRET CODE ENDPOINTS =====
+
+// Get current secret code for logged-in patient
+app.get("/patient/me/secret-code", verifyJWT, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+    const user = await userCollection.findOne({ email: userEmail });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const codeInfo = await ensureValidSecretCode(user);
+
+    // Update if regeneration was needed
+    if (codeInfo.needsUpdate) {
+      await userCollection.updateOne(
+        { email: userEmail },
+        {
+          $set: {
+            secretCode: codeInfo.secretCode,
+            secretCodeGeneratedAt: codeInfo.secretCodeGeneratedAt,
+          },
+        },
+      );
+    }
+
+    res.json({
+      success: true,
+      secretCode: codeInfo.secretCode,
+      generatedAt: codeInfo.secretCodeGeneratedAt,
+      expiresAt: new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        new Date().getDate() + 1,
+      ), // Tomorrow at 12 AM
+    });
+  } catch (err) {
+    console.error("Error getting secret code:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Manually regenerate secret code for patient
+app.post("/patient/me/secret-code/regenerate", verifyJWT, async (req, res) => {
+  try {
+    const userEmail = req.user.email;
+    const newCode = generateSecretCode();
+    const now = new Date();
+
+    const result = await userCollection.updateOne(
+      { email: userEmail },
+      {
+        $set: {
+          secretCode: newCode,
+          secretCodeGeneratedAt: now,
+        },
+      },
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      success: true,
+      secretCode: newCode,
+      message: "Secret code regenerated successfully",
+      expiresAt: new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1),
+    });
+  } catch (err) {
+    console.error("Error regenerating secret code:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Verify secret code before accessing patient details
+app.post("/patient/verify-code", verifyJWT, async (req, res) => {
+  try {
+    const { patientEmail, providedCode } = req.body;
+
+    if (!patientEmail || !providedCode) {
+      return res.status(400).json({ message: "Missing patient email or code" });
+    }
+
+    const patient = await userCollection.findOne({ email: patientEmail });
+
+    if (!patient) {
+      return res.status(404).json({ message: "Patient not found" });
+    }
+
+    const codeInfo = await ensureValidSecretCode(patient);
+
+    // Update if regeneration was needed
+    if (codeInfo.needsUpdate) {
+      await userCollection.updateOne(
+        { email: patientEmail },
+        {
+          $set: {
+            secretCode: codeInfo.secretCode,
+            secretCodeGeneratedAt: codeInfo.secretCodeGeneratedAt,
+          },
+        },
+      );
+    }
+
+    // Verify the code
+    if (codeInfo.secretCode === providedCode.trim()) {
+      res.json({
+        success: true,
+        message: "Code verified successfully",
+        patient: {
+          name: patient.name,
+          email: patient.email,
+          uid: patient.uid,
+          mobileNo: patient.mobileNo,
+          img: patient.img,
+          role: patient.role,
+        },
+      });
+    } else {
+      res.status(401).json({
+        success: false,
+        message: "Invalid or expired secret code",
+      });
+    }
+  } catch (err) {
+    console.error("Error verifying code:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 app.post("/doctor", async (req, res) => {
   try {
     const email = req.body.email;

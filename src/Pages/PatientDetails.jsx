@@ -26,6 +26,9 @@ const PatientDetails = () => {
   const [loading, setLoading] = useState(true);
   const [modalImg, setModalImg] = useState(null);
   const [showPrescriptionGen, setShowPrescriptionGen] = useState(false);
+  const [secretCode, setSecretCode] = useState("");
+  const [codeVerified, setCodeVerified] = useState(false);
+  const [codeError, setCodeError] = useState("");
 
   // Handler for downloading digital prescription as PDF
   const handleDownloadDigitalPrescriptionPDF = async (prescription) => {
@@ -122,6 +125,39 @@ const PatientDetails = () => {
       alert("Failed to delete prescription: " + error.message);
     }
   };
+  const handleVerifyCode = async () => {
+    try {
+      setCodeError("");
+      const token = localStorage.getItem("authToken");
+      const response = await fetch(
+        `${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}/patient/verify-code`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            patientEmail: email,
+            providedCode: secretCode,
+          }),
+        },
+      );
+
+      const data = await response.json();
+      if (data.success) {
+        setCodeVerified(true);
+        setShowCodeModal(false);
+        setSecretCode("");
+      } else {
+        setCodeError(data.message || "Invalid code");
+      }
+    } catch (err) {
+      setCodeError("Error verifying code. Please try again.");
+      console.error("Error:", err);
+    }
+  };
+
   useEffect(() => {
     if (!email && !uid) return;
 
@@ -219,6 +255,52 @@ const PatientDetails = () => {
       )}
     </div>
   );
+
+  // If doctor hasn't verified code, only show modal
+  if (user?.role === "doctor" && !codeVerified) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+          <h2 className="text-2xl font-bold text-gray-800 mb-4">
+            Verify Access
+          </h2>
+          <p className="text-gray-600 mb-4">
+            Enter the patient's 6-digit secret code to view their details. This
+            code refreshes daily at 12:00 AM.
+          </p>
+
+          <input
+            type="text"
+            maxLength="6"
+            placeholder="Enter 6-digit code"
+            value={secretCode}
+            onChange={(e) => setSecretCode(e.target.value.replace(/\D/g, ""))}
+            className="w-full px-4 py-2 border-2 border-blue-300 rounded-lg text-center text-2xl tracking-widest font-mono focus:outline-none focus:border-blue-500 mb-4"
+          />
+
+          {codeError && (
+            <p className="text-red-500 text-sm mb-4">{codeError}</p>
+          )}
+
+          <div className="flex gap-3">
+            <button
+              onClick={handleVerifyCode}
+              disabled={secretCode.length !== 6}
+              className="flex-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-2 rounded-lg transition"
+            >
+              Verify
+            </button>
+            <button
+              onClick={() => window.history.back()}
+              className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-6 bg-gray-100">

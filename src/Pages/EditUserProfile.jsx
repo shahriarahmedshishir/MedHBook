@@ -27,6 +27,8 @@ const EditUserProfile = () => {
   const [imageError, setImageError] = useState(false);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: "", message: "" });
+  const [secretCode, setSecretCode] = useState("");
+  const [regeneratingCode, setRegeneratingCode] = useState(false);
 
   useEffect(() => {
     const fetchUserData = async () => {
@@ -70,6 +72,55 @@ const EditUserProfile = () => {
 
     fetchUserData();
   }, [user]);
+
+  // Fetch secret code
+  useEffect(() => {
+    const fetchSecretCode = async () => {
+      if (user?.email) {
+        try {
+          const token = localStorage.getItem("authToken");
+          const response = await axios.get(
+            "http://localhost:3000/patient/me/secret-code",
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            },
+          );
+          setSecretCode(response.data.secretCode);
+        } catch (error) {
+          console.error("Error fetching secret code:", error);
+        }
+      }
+    };
+    fetchSecretCode();
+  }, [user?.email]);
+
+  const handleRegenerateCode = async () => {
+    try {
+      setRegeneratingCode(true);
+      const token = localStorage.getItem("authToken");
+      const response = await axios.post(
+        "http://localhost:3000/patient/me/secret-code/regenerate",
+        {},
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      setSecretCode(response.data.secretCode);
+      setStatus({
+        type: "success",
+        message: "Secret code regenerated successfully!",
+      });
+      setTimeout(() => setStatus({ type: "", message: "" }), 3000);
+    } catch (error) {
+      console.error("Error regenerating code:", error);
+      setStatus({
+        type: "error",
+        message: "Failed to regenerate secret code",
+      });
+    } finally {
+      setRegeneratingCode(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -342,6 +393,36 @@ const EditUserProfile = () => {
                   Normal: below 5.7% | Pre-diabetic: 5.7-6.4% | Diabetic: 6.5%
                   or higher
                 </p>
+              </div>
+            </div>
+
+            {/* Secret Code Section */}
+            <div className="mt-8 p-4 bg-blue-50 border-2 border-blue-200 rounded-lg">
+              <h2 className="text-lg font-semibold text-blue-900 mb-3">
+                🔐 Privacy Protection - Secret Code
+              </h2>
+              <p className="text-sm text-blue-800 mb-4">
+                This 6-digit code helps protect your privacy. Doctors need this
+                code to view your details. Your code refreshes automatically
+                every day at 12:00 AM.
+              </p>
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-900 mb-2">
+                    Current Code:
+                  </p>
+                  <div className="text-3xl font-mono font-bold text-blue-600 bg-white p-3 rounded border-2 border-blue-300 text-center tracking-widest">
+                    {secretCode || "Loading..."}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleRegenerateCode}
+                  disabled={regeneratingCode}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold rounded-lg transition h-fit"
+                >
+                  {regeneratingCode ? "Regenerating..." : "Regenerate"}
+                </button>
               </div>
             </div>
 

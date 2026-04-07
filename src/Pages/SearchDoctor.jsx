@@ -629,6 +629,19 @@ const SearchDoctor = () => {
     }
   };
 
+  const handleAppointmentClick = (doctor) => {
+    navigate(`/appointment/${doctor._id}`, { state: { doctor } });
+  };
+
+  const handleContactDoctor = (doctor) => {
+    navigate("/chat", {
+      state: {
+        doctorEmail: doctor.email,
+        doctorName: doctor.name,
+      },
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] py-12 px-4 relative overflow-hidden">
       {/* Animated background blobs */}
@@ -822,16 +835,6 @@ const SearchDoctor = () => {
                       </div>
                     )}
 
-                    {/* Appointment Button */}
-                    <div className="mt-4 flex justify-end">
-                      <button
-                        className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white px-4 py-2 rounded-full font-semibold transition-all duration-300"
-                        onClick={() => handleAppointmentClick(doctor)}
-                      >
-                        Book Appointment
-                      </button>
-                    </div>
-
                     {doctor.location && (
                       <div className="flex items-center text-gray-700 mb-4">
                         <MapPin size={16} className="mr-2 text-[#67cffe]" />
@@ -852,17 +855,25 @@ const SearchDoctor = () => {
                       </p>
                     )}
 
-                    {/* Action Button */}
-                    <button
-                      onClick={() =>
-                        navigate(`/doctor-profile/${doctor._id}`, {
-                          state: { doctor },
-                        })
-                      }
-                      className="w-full bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/30 text-white font-bold py-3 rounded-lg transition-all duration-300 hover:-translate-y-0.5"
-                    >
-                      View Profile
-                    </button>
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <button
+                        onClick={() =>
+                          navigate(`/doctor-profile/${doctor._id}`, {
+                            state: { doctor },
+                          })
+                        }
+                        className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                      >
+                        Profile
+                      </button>
+                      <button
+                        onClick={() => handleAppointmentClick(doctor)}
+                        className="bg-gradient-to-r from-[#67cffe] to-[#304d5d] hover:shadow-lg hover:shadow-[#304d5d]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                      >
+                        Appointment
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -991,22 +1002,22 @@ const SearchDoctor = () => {
                     )}
 
                     {/* Action Button */}
-                    <div className="flex flex-col gap-2 mt-3">
+                    <div className="grid grid-cols-2 gap-2 mt-3">
                       <button
                         onClick={() =>
                           navigate(`/doctor-profile/${doctor._id}`, {
                             state: { doctor },
                           })
                         }
-                        className="w-full bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/30 text-white font-bold py-3 rounded-lg transition-all duration-300 hover:-translate-y-0.5"
+                        className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
                       >
-                        View Profile
+                        Profile
                       </button>
                       <button
-                        onClick={() => navigate(`/appointment/${doctor._id}`)}
-                        className="w-full bg-gradient-to-r from-[#67cffe] to-[#304d5d] hover:shadow-xl hover:shadow-[#304d5d]/30 text-white font-bold py-3 rounded-lg transition-all duration-300 hover:-translate-y-0.5"
+                        onClick={() => handleAppointmentClick(doctor)}
+                        className="bg-gradient-to-r from-[#67cffe] to-[#304d5d] hover:shadow-lg hover:shadow-[#304d5d]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
                       >
-                        Book Appointment
+                        Appointment
                       </button>
                     </div>
                   </div>

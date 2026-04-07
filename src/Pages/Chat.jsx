@@ -10,10 +10,12 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import io from "socket.io-client";
+import { useLocation } from "react-router-dom";
 import AuthContext from "../Components/Context/AuthContext";
 
 const Chat = () => {
   const { user } = useContext(AuthContext);
+  const location = useLocation();
   const [conversations, setConversations] = useState([]);
   const [selectedConversation, setSelectedConversation] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -29,6 +31,20 @@ const Chat = () => {
   const [showMobileChat, setShowMobileChat] = useState(false);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+
+  // Get passed state (doctor info from DoctorProfile page)
+  const passedDoctorEmail = location.state?.doctorEmail;
+  const passedDoctorName = location.state?.doctorName;
+
+  // Log whenever state changes
+  useEffect(() => {
+    console.log("=== CHAT COMPONENT MOUNTED ===");
+    console.log("Received from location.state:", {
+      passedDoctorEmail,
+      passedDoctorName,
+    });
+    console.log("User:", { email: user?.email, name: user?.name });
+  }, []);
 
   // Initialize Socket.io connection
   useEffect(() => {
@@ -74,19 +90,41 @@ const Chat = () => {
       const interval = setInterval(fetchConversations, 5000);
       return () => clearInterval(interval);
     }
-  }, [user]);
+  }, [user?.email]);
 
-  // Fetch messages when conversation is selected
+  // Auto-select doctor conversation if coming from DoctorProfile
   useEffect(() => {
-    if (selectedConversation && user?.email) {
-      fetchMessages(user.email, selectedConversation.otherEmail);
+    console.log("Auto-select effect - Doctor email:", passedDoctorEmail);
+
+    if (passedDoctorEmail && passedDoctorName) {
+      console.log("✅ Doctor info received, auto-selecting...");
+
+      const doctorConversation = {
+        otherEmail: passedDoctorEmail,
+        otherName: passedDoctorName,
+        lastMessage: "New conversation",
+        timestamp: new Date().toISOString(),
+        unreadCount: 0,
+      };
+
+      setSelectedConversation(doctorConversation);
+      setShowMobileChat(true);
+
+      // Also add to conversations list if not already there
+      setConversations((prev) => {
+        const exists = prev.some(
+          (conv) => conv.otherEmail === passedDoctorEmail,
+        );
+        if (!exists) {
+          console.log("Adding doctor to conversations list");
+          return [doctorConversation, ...prev];
+        }
+        return prev;
+      });
+
+      console.log("✅ New conversation set for doctor:", passedDoctorEmail);
     }
-  }, [selectedConversation, user]);
-
-  // Scroll to bottom
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, []);
 
   const fetchConversations = async () => {
     try {

@@ -29,6 +29,7 @@ import AboutUs from "../Pages/AboutUs";
 import Appointment from "../Pages/Appointment";
 import DoctorAppointments from "../Pages/DoctorAppointments";
 import PatientAppointments from "../Pages/PatientAppointments";
+import ChangePassword from "../Pages/ChangePassword";
 
 // Example of a fake auth check (replace with your real one)
 const isAuthenticated = false; // later, you’ll use Firebase or context here
@@ -222,6 +223,14 @@ const routes = createBrowserRouter([
         element: (
           <PrivateRouter>
             <AboutUs />
+          </PrivateRouter>
+        ),
+      },
+      {
+        path: "/change-password",
+        element: (
+          <PrivateRouter>
+            <ChangePassword />
           </PrivateRouter>
         ),
       },
