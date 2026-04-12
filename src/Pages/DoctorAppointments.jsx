@@ -69,12 +69,12 @@ const DoctorAppointments = () => {
   }
 
   return (
-    <div className="flex flex-col bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Header */}
       <Header />
 
-      {/* Content — full viewport height */}
-      <main className="min-h-screen overflow-y-auto">
+      {/* Content — flex grow to fill space */}
+      <main className="flex-1 overflow-y-auto">
         <div className="p-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-6 text-[#007b8f]">
             My Appointments

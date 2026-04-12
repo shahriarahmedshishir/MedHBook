@@ -7,6 +7,8 @@ import {
   createUserWithEmailAndPassword,
   sendPasswordResetEmail,
   sendEmailVerification,
+  signInWithPopup,
+  GoogleAuthProvider,
 } from "firebase/auth";
 import auth from "../Firebase/firebase.init";
 
@@ -16,6 +18,7 @@ const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
+  const googleProvider = new GoogleAuthProvider();
 
   const createUser = async (email, password) => {
     setLoading(true);
@@ -163,6 +166,154 @@ const AuthProvider = ({ children }) => {
     }
   };
 
+  const signInWithGoogle = async () => {
+    setLoading(true);
+    try {
+      // Sign in with Google popup
+      const result = await signInWithPopup(auth, googleProvider);
+      const firebaseUser = result.user;
+
+      console.log("✅ Google sign-in successful:", firebaseUser.email);
+
+      // Check if this is a new user (first sign-in)
+      const isNewUser = result.additionalUserInfo?.isNewUser;
+
+      if (isNewUser) {
+        console.log("📝 New Google user detected, creating profile...");
+
+        // Create user profile in backend for new Google users
+        const userData = new FormData();
+        userData.append(
+          "name",
+          firebaseUser.displayName || firebaseUser.email.split("@")[0],
+        );
+        userData.append("email", firebaseUser.email);
+        userData.append("mobileNo", ""); // Empty, user can update later
+        userData.append("role", "user");
+
+        // If Google account has a profile picture, we can fetch and save it
+        if (firebaseUser.photoURL) {
+          // Convert URL image to Blob and append
+          try {
+            const imgResponse = await fetch(firebaseUser.photoURL);
+            const blob = await imgResponse.blob();
+            const file = new File([blob], "profile.jpg", {
+              type: "image/jpeg",
+            });
+            userData.append("img", file);
+          } catch (imgError) {
+            console.warn("Could not fetch Google profile picture:", imgError);
+          }
+        }
+
+        try {
+          const backendRes = await fetch(`${serverURL}/userdata`, {
+            method: "POST",
+            body: userData,
+          });
+
+          const backendData = await backendRes.json();
+          if (!backendData.success) {
+            console.warn(
+              "Backend user creation returned non-success:",
+              backendData,
+            );
+          } else {
+            console.log("✅ User profile created in backend");
+          }
+        } catch (backendError) {
+          console.warn("Error creating user in backend:", backendError);
+          // Don't throw - continue with sign-in even if backend fails
+        }
+      }
+
+      // Get JWT token from backend
+      const tokenResponse = await fetch(`${serverURL}/api/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: firebaseUser.email,
+          firebaseUid: firebaseUser.uid,
+        }),
+      });
+
+      if (!tokenResponse.ok) {
+        const errorData = await tokenResponse.json();
+        throw new Error(
+          errorData.error || "Failed to get authentication token",
+        );
+      }
+
+      const tokenData = await tokenResponse.json();
+
+      // Store JWT token in localStorage
+      localStorage.setItem("authToken", tokenData.token);
+      console.log("🔐 JWT token stored");
+
+      await firebaseUser.getIdToken(true);
+      const idTokenResult = await firebaseUser.getIdTokenResult();
+      const adminFlag = !!idTokenResult.claims.admin;
+      setIsAdmin(adminFlag);
+
+      // Determine role from Firebase claims
+      let userRole = "user";
+      if (idTokenResult.claims.admin) {
+        userRole = "admin";
+      } else if (idTokenResult.claims.doctor) {
+        userRole = "doctor";
+      } else if (idTokenResult.claims.role) {
+        userRole = idTokenResult.claims.role;
+      }
+
+      // Fetch backend user info
+      const res = await fetch(`${serverURL}/user`);
+      const data = await res.json();
+      const matchedUser = data.find((u) => u.email === firebaseUser.email);
+
+      // Check if user is a doctor in doctorCollection
+      const doctorRes = await fetch(
+        `${serverURL}/doctor/${firebaseUser.email}`,
+      );
+      const doctorData = await doctorRes.json();
+      if (doctorData && !idTokenResult.claims.doctor && userRole !== "admin") {
+        userRole = "doctor";
+      }
+
+      console.log("Firebase claims:", idTokenResult.claims);
+      console.log("Matched user:", matchedUser);
+      console.log("Doctor profile:", doctorData);
+      console.log("Final role:", userRole);
+
+      setUser({
+        email: firebaseUser.email,
+        name:
+          matchedUser?.name ||
+          firebaseUser.displayName ||
+          firebaseUser.email.split("@")[0],
+        uid: matchedUser?.uid || null,
+        img: matchedUser?.img || firebaseUser.photoURL || null,
+        role: userRole,
+      });
+
+      console.log(
+        "User logged in via Google with img:",
+        matchedUser?.img || firebaseUser.photoURL,
+      );
+
+      return firebaseUser;
+    } catch (error) {
+      console.error("❌ Google sign-in error:", error);
+      setUser(null);
+      setIsAdmin(false);
+      localStorage.removeItem("authToken");
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Refresh user data from backend
   const refreshUser = async () => {
     const firebaseUser = auth.currentUser;
@@ -264,6 +415,7 @@ const AuthProvider = ({ children }) => {
     resetPassword,
     refreshUser,
     sendVerificationEmail,
+    signInWithGoogle,
   };
 
   return (

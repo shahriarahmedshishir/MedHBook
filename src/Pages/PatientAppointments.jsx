@@ -60,14 +60,14 @@ const PatientAppointments = () => {
   };
 
   return (
-    <div className="flex flex-col bg-gray-50">
+    <div className="flex flex-col min-h-screen bg-gray-50">
       {/* Header */}
       <div className="flex-shrink-0 z-50">
         <Header />
       </div>
 
-      {/* Content — full viewport height */}
-      <main className="min-h-screen overflow-y-auto">
+      {/* Content — flex grow to fill space */}
+      <main className="flex-1 overflow-y-auto">
         <div className="max-w-5xl mx-auto px-4 py-8">
           <h2 className="text-2xl font-bold mb-6 text-[#304d5d]">
             My Appointments
