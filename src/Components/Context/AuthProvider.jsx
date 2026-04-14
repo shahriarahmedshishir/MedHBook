@@ -61,7 +61,12 @@ const AuthProvider = ({ children }) => {
         );
       }
 
-      // Get JWT token from backend
+      // Get Firebase claims first
+      await firebaseUser.getIdToken(true);
+      const idTokenResult = await firebaseUser.getIdTokenResult();
+      const adminFlag = !!idTokenResult.claims.admin;
+
+      // Get JWT token from backend and pass isAdmin flag
       const tokenResponse = await fetch(`${serverURL}/api/login`, {
         method: "POST",
         headers: {
@@ -70,6 +75,7 @@ const AuthProvider = ({ children }) => {
         body: JSON.stringify({
           email: firebaseUser.email,
           firebaseUid: firebaseUser.uid,
+          isAdmin: adminFlag,
         }),
       });
 
@@ -86,9 +92,6 @@ const AuthProvider = ({ children }) => {
       localStorage.setItem("authToken", tokenData.token);
       console.log("🔐 JWT token stored");
 
-      await firebaseUser.getIdToken(true);
-      const idTokenResult = await firebaseUser.getIdTokenResult();
-      const adminFlag = !!idTokenResult.claims.admin;
       setIsAdmin(adminFlag);
 
       // Determine role from Firebase claims
@@ -227,7 +230,12 @@ const AuthProvider = ({ children }) => {
         }
       }
 
-      // Get JWT token from backend
+      // Get Firebase claims first
+      await firebaseUser.getIdToken(true);
+      const idTokenResult = await firebaseUser.getIdTokenResult();
+      const adminFlag = !!idTokenResult.claims.admin;
+
+      // Get JWT token from backend and pass isAdmin flag
       const tokenResponse = await fetch(`${serverURL}/api/login`, {
         method: "POST",
         headers: {
@@ -236,6 +244,7 @@ const AuthProvider = ({ children }) => {
         body: JSON.stringify({
           email: firebaseUser.email,
           firebaseUid: firebaseUser.uid,
+          isAdmin: adminFlag,
         }),
       });
 
@@ -252,9 +261,6 @@ const AuthProvider = ({ children }) => {
       localStorage.setItem("authToken", tokenData.token);
       console.log("🔐 JWT token stored");
 
-      await firebaseUser.getIdToken(true);
-      const idTokenResult = await firebaseUser.getIdTokenResult();
-      const adminFlag = !!idTokenResult.claims.admin;
       setIsAdmin(adminFlag);
 
       // Determine role from Firebase claims

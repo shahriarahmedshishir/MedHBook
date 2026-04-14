@@ -397,7 +397,7 @@ app.patch("/appointments/:id", verifyJWT, async (req, res) => {
 // Login endpoint - generates JWT token
 app.post("/api/login", async (req, res) => {
   try {
-    const { email, firebaseUid } = req.body;
+    const { email, firebaseUid, isAdmin } = req.body;
 
     if (!email) {
       return res.status(400).json({ error: "Email is required" });
@@ -415,6 +415,12 @@ app.post("/api/login", async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    // If user is admin (from Firebase claims), update their role in the database
+    if (isAdmin && user.role !== "admin") {
+      await userCollection.updateOne({ email }, { $set: { role: "admin" } });
+      user.role = "admin";
     }
 
     // Generate JWT token

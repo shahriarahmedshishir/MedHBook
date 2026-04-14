@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AuthContext from "../Components/Context/AuthContext";
-import api from "../utils/api";
+import { authGet } from "../utils/api";
 
 const AdminDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -19,8 +19,9 @@ const AdminDashboard = () => {
 
   const fetchStatistics = async () => {
     try {
-      const response = await api.get("/admin/statistics");
-      setStats(response.data);
+      const response = await authGet("/admin/statistics");
+      const data = await response.json();
+      setStats(data);
     } catch (error) {
       console.error("Error fetching statistics:", error);
     } finally {
