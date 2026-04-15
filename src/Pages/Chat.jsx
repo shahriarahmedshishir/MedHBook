@@ -8,6 +8,7 @@ import {
   Check,
   CheckCheck,
   ArrowLeft,
+  Trash2,
 } from "lucide-react";
 import io from "socket.io-client";
 import { useLocation } from "react-router-dom";
@@ -31,6 +32,8 @@ const Chat = () => {
   const [showMobileChat, setShowMobileChat] = useState(false);
   const messagesEndRef = useRef(null);
   const socketRef = useRef(null);
+  const selectedConversationRef = useRef(null);
+  const userEmailRef = useRef(null);
 
   // Get passed state (doctor info from DoctorProfile page)
   const passedDoctorEmail = location.state?.doctorEmail;
@@ -48,6 +51,14 @@ const Chat = () => {
 
   // Initialize Socket.io connection
   useEffect(() => {
+    selectedConversationRef.current = selectedConversation;
+  }, [selectedConversation]);
+
+  useEffect(() => {
+    userEmailRef.current = user?.email || null;
+  }, [user?.email]);
+
+  useEffect(() => {
     socketRef.current = io("http://localhost:3000");
 
     socketRef.current.on("connect", () => {
@@ -59,7 +70,75 @@ const Chat = () => {
 
     // Listen for incoming messages
     socketRef.current.on("message:receive", (data) => {
-      setMessages((prev) => [...prev, data]);
+      const currentUserEmail = userEmailRef.current;
+      const currentConversation = selectedConversationRef.current;
+
+      if (!currentUserEmail) return;
+
+      const belongsToOpenConversation =
+        currentConversation &&
+        ((data.senderEmail === currentUserEmail &&
+          data.recipientEmail === currentConversation.otherEmail) ||
+          (data.senderEmail === currentConversation.otherEmail &&
+            data.recipientEmail === currentUserEmail));
+
+      if (belongsToOpenConversation) {
+        setMessages((prev) => [...prev, data]);
+      }
+
+      fetchConversations();
+
+      if (
+        currentConversation &&
+        data.senderEmail === currentConversation.otherEmail &&
+        data.recipientEmail === currentUserEmail
+      ) {
+        markConversationAsRead(
+          currentUserEmail,
+          currentConversation.otherEmail,
+        );
+      }
+    });
+
+    socketRef.current.on("message:sent", (payload) => {
+      const message = payload?.data;
+      if (!message) return;
+
+      const currentUserEmail = userEmailRef.current;
+      const currentConversation = selectedConversationRef.current;
+
+      if (!currentUserEmail || !currentConversation) return;
+
+      const belongsToOpenConversation =
+        message.senderEmail === currentUserEmail &&
+        message.recipientEmail === currentConversation.otherEmail;
+
+      if (belongsToOpenConversation) {
+        setMessages((prev) => [...prev, message]);
+      }
+
+      fetchConversations();
+    });
+
+    socketRef.current.on("messages:seen", ({ readerEmail }) => {
+      if (!readerEmail) return;
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.senderEmail === userEmailRef.current &&
+          msg.recipientEmail === readerEmail
+            ? { ...msg, read: true }
+            : msg,
+        ),
+      );
+      fetchConversations();
+    });
+
+    socketRef.current.on("message:deleted", ({ messageId }) => {
+      if (!messageId) return;
+      setMessages((prev) =>
+        prev.filter((msg) => String(msg._id) !== String(messageId)),
+      );
+      fetchConversations();
     });
 
     // Listen for typing indicators
@@ -156,6 +235,49 @@ const Chat = () => {
     }
   };
 
+  const markConversationAsRead = async (userEmail, otherEmail) => {
+    try {
+      await axios.put(
+        "http://localhost:3000/messages/read-conversation",
+        { userEmail, otherEmail },
+        {
+          headers: { Authorization: `Bearer ${getAuthToken()}` },
+        },
+      );
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.recipientEmail === userEmail && msg.senderEmail === otherEmail
+            ? { ...msg, read: true }
+            : msg,
+        ),
+      );
+      fetchConversations();
+    } catch (err) {
+      console.error("Error marking conversation as read:", err);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId) => {
+    if (!messageId) return;
+
+    const confirmed = window.confirm("Delete this message?");
+    if (!confirmed) return;
+
+    try {
+      await axios.delete(`http://localhost:3000/messages/${messageId}`, {
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
+      });
+
+      setMessages((prev) =>
+        prev.filter((msg) => String(msg._id) !== String(messageId)),
+      );
+      fetchConversations();
+    } catch (err) {
+      console.error("Error deleting message:", err);
+      alert("Failed to delete message");
+    }
+  };
+
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if ((!messageInput.trim() && !attachment) || !selectedConversation) return;
@@ -194,16 +316,6 @@ const Chat = () => {
       message: messageInput,
       attachment: attachmentUrl,
     };
-
-    // Optimistically add message to UI
-    setMessages((prev) => [
-      ...prev,
-      {
-        ...messageData,
-        timestamp: new Date().toISOString(),
-        read: false,
-      },
-    ]);
 
     // Emit via Socket.io
     socketRef.current.emit("message:send", messageData);
@@ -271,39 +383,60 @@ const Chat = () => {
 
   const isUserOnline = onlineUsers.includes(selectedConversation?.otherEmail);
 
+  const getMessageId = (msg) => {
+    if (!msg?._id) return null;
+    if (typeof msg._id === "string") return msg._id;
+    if (msg._id.$oid) return msg._id.$oid;
+    if (typeof msg._id.toString === "function") return msg._id.toString();
+    return null;
+  };
+
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (!user?.email || !selectedConversation?.otherEmail) return;
+
+    fetchMessages(user.email, selectedConversation.otherEmail);
+    markConversationAsRead(user.email, selectedConversation.otherEmail);
+  }, [user?.email, selectedConversation?.otherEmail]);
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff]">
       {/* Sidebar */}
       <div
         className={`${
           showMobileChat ? "hidden" : "flex"
-        } md:flex w-full md:w-80 bg-white border-r border-gray-200 flex-col`}
+        } md:flex w-full md:w-64 bg-white border-r border-gray-200 flex-col`}
       >
         {/* Header */}
-        <div className="p-4 border-b-2 border-[#67cffe]/20 bg-gradient-to-r from-[#67cffe]/5 to-transparent">
-          <h1 className="text-2xl font-bold text-[#304d5d] mb-4">Messages</h1>
+        <div className="p-1 border-b border-[#67cffe]/20 bg-gradient-to-r from-[#67cffe]/5 to-transparent">
+          <h1 className="text-base font-bold text-[#304d5d] mb-1">Messages</h1>
 
           {/* Search */}
-          <div className="relative mb-4">
+          <div className="relative mb-1">
             <input
               type="text"
               placeholder="Search conversations..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full px-4 py-2 pl-10 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
+              className="w-full px-3 py-1.5 pl-8 text-sm border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
             />
             <SearchIcon
-              className="absolute left-3 top-2.5 text-gray-400"
-              size={18}
+              className="absolute left-2 top-2 text-gray-400"
+              size={16}
             />
           </div>
 
           {/* New Chat Button */}
           <button
             onClick={() => setShowNewChatModal(true)}
-            className="w-full bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/30 text-white font-semibold py-2 rounded-full transition-all duration-300 flex items-center justify-center gap-2 hover:-translate-y-1"
+            className="w-full bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/20 text-white font-semibold py-1 text-xs rounded-full transition-all duration-300 flex items-center justify-center gap-0.5"
           >
-            <Plus size={20} />
+            <Plus size={14} />
             New Chat
           </button>
         </div>
@@ -311,26 +444,24 @@ const Chat = () => {
         {/* Conversations List */}
         <div className="flex-1 overflow-y-auto">
           {filteredConversations.length === 0 ? (
-            <div className="p-4 text-center text-gray-500">
-              <p>No conversations yet</p>
-              <p className="text-sm mt-2">
-                Start a new chat to begin messaging
-              </p>
+            <div className="p-2 text-center text-gray-500">
+              <p className="text-sm">No conversations yet</p>
+              <p className="text-xs mt-1">Start a new chat to begin</p>
             </div>
           ) : (
             filteredConversations.map((conv) => (
               <button
                 key={conv.otherEmail}
                 onClick={() => handleSelectConversation(conv)}
-                className={`w-full p-4 border-b border-gray-100 text-left hover:bg-[#67cffe]/10 transition ${
+                className={`w-full p-2 border-b border-gray-100 text-left hover:bg-[#67cffe]/10 transition ${
                   selectedConversation?.otherEmail === conv.otherEmail
                     ? "bg-gradient-to-r from-[#67cffe]/20 to-transparent border-l-4 border-[#67cffe]"
                     : ""
                 }`}
               >
                 <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-[#304d5d]">
+                  <div className="flex items-center gap-1">
+                    <h3 className="font-semibold text-[#304d5d] text-sm">
                       {conv.otherName}
                     </h3>
                     {onlineUsers.includes(conv.otherEmail) && (
@@ -338,15 +469,15 @@ const Chat = () => {
                     )}
                   </div>
                   {conv.unreadCount > 0 && (
-                    <span className="bg-red-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    <span className="bg-red-500 text-white text-xs font-bold px-1.5 py-0.5 rounded-full">
                       {conv.unreadCount}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-600 truncate">
+                <p className="text-xs text-gray-600 truncate">
                   {conv.lastMessage}
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-xs text-gray-400 mt-0.5">
                   {new Date(conv.timestamp).toLocaleDateString()}
                 </p>
               </button>
@@ -364,24 +495,24 @@ const Chat = () => {
         {selectedConversation ? (
           <>
             {/* Chat Header */}
-            <div className="p-4 border-b-2 border-[#67cffe]/30 bg-gradient-to-r from-[#304d5d] to-[#67cffe] shadow-lg">
+            <div className="p-1 border-b border-[#67cffe]/30 bg-gradient-to-r from-[#304d5d] to-[#67cffe] shadow">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1">
                   {/* Back button for mobile */}
                   <button
                     onClick={handleBackToList}
-                    className="md:hidden p-1 hover:bg-white/20 rounded-full transition"
+                    className="md:hidden p-0.5 hover:bg-white/20 rounded-full transition"
                   >
-                    <ArrowLeft className="w-6 h-6 text-white" />
+                    <ArrowLeft className="w-4 h-4 text-white" />
                   </button>
                   <div>
-                    <h2 className="text-xl font-bold text-white">
+                    <h2 className="text-sm font-bold text-white">
                       {selectedConversation.otherName}
                     </h2>
-                    <p className="text-sm text-white/80">
+                    <p className="text-xs text-white/80">
                       {isUserOnline ? (
-                        <span className="flex items-center gap-1">
-                          <span className="w-2 h-2 bg-green-400 rounded-full inline-block"></span>
+                        <span className="flex items-center gap-0.5">
+                          <span className="w-1.5 h-1.5 bg-green-400 rounded-full inline-block"></span>
                           Online
                         </span>
                       ) : (
@@ -394,98 +525,112 @@ const Chat = () => {
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            <div className="flex-1 overflow-y-auto p-2 space-y-2">
               {messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                  <p>No messages yet. Start the conversation!</p>
+                  <p className="text-sm">
+                    No messages yet. Start the conversation!
+                  </p>
                 </div>
               ) : (
-                messages.map((msg, idx) => (
-                  <div
-                    key={idx}
-                    className={`flex ${
-                      msg.senderEmail === user.email
-                        ? "justify-end"
-                        : "justify-start"
-                    }`}
-                  >
+                messages.map((msg, idx) => {
+                  const messageId = getMessageId(msg);
+                  return (
                     <div
-                      className={`max-w-xs md:max-w-md px-4 py-2 rounded-lg shadow-md ${
+                      key={messageId || idx}
+                      className={`flex ${
                         msg.senderEmail === user.email
-                          ? "bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white rounded-br-none"
-                          : "bg-white text-gray-800 rounded-bl-none border-2 border-gray-100"
+                          ? "justify-end"
+                          : "justify-start"
                       }`}
                     >
-                      <div className="flex flex-col gap-2">
-                        <span className="flex items-center gap-2">
-                          <p>{msg.message}</p>
-                          {msg.senderEmail === user.email &&
-                            (msg.read ? (
-                              <CheckCheck size={14} />
-                            ) : (
-                              <Check size={14} />
-                            ))}
-                        </span>
-                        {msg.attachment && (
-                          <div className="mt-2">
-                            {msg.attachment.match(
-                              /\.(jpg|jpeg|png|gif|webp)$/i,
-                            ) ? (
-                              <img
-                                src={
-                                  msg.attachment.startsWith("/uploads/")
-                                    ? `http://localhost:3000${msg.attachment}`
-                                    : msg.attachment
-                                }
-                                alt="attachment"
-                                className="max-h-48 rounded border border-gray-200"
-                              />
-                            ) : msg.attachment.match(/\.(pdf)$/i) ? (
-                              <a
-                                href={
-                                  msg.attachment.startsWith("/uploads/")
-                                    ? `http://localhost:3000${msg.attachment}`
-                                    : msg.attachment
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                View PDF
-                              </a>
-                            ) : (
-                              <a
-                                href={
-                                  msg.attachment.startsWith("/uploads/")
-                                    ? `http://localhost:3000${msg.attachment}`
-                                    : msg.attachment
-                                }
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-blue-600 underline"
-                              >
-                                Download Attachment
-                              </a>
-                            )}
-                          </div>
+                      <div
+                        className={`max-w-xs md:max-w-md px-3 py-1.5 rounded-lg shadow ${
+                          msg.senderEmail === user.email
+                            ? "bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white rounded-br-none"
+                            : "bg-white text-gray-800 rounded-bl-none border border-gray-100"
+                        }`}
+                      >
+                        <div className="flex flex-col gap-2">
+                          <span className="flex items-center gap-2">
+                            <p>{msg.message}</p>
+                            {msg.senderEmail === user.email &&
+                              (msg.read ? (
+                                <CheckCheck size={14} />
+                              ) : (
+                                <Check size={14} />
+                              ))}
+                          </span>
+                          {msg.attachment && (
+                            <div className="mt-2">
+                              {msg.attachment.match(
+                                /\.(jpg|jpeg|png|gif|webp)$/i,
+                              ) ? (
+                                <img
+                                  src={
+                                    msg.attachment.startsWith("/uploads/")
+                                      ? `http://localhost:3000${msg.attachment}`
+                                      : msg.attachment
+                                  }
+                                  alt="attachment"
+                                  className="max-h-48 rounded border border-gray-200"
+                                />
+                              ) : msg.attachment.match(/\.(pdf)$/i) ? (
+                                <a
+                                  href={
+                                    msg.attachment.startsWith("/uploads/")
+                                      ? `http://localhost:3000${msg.attachment}`
+                                      : msg.attachment
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 underline"
+                                >
+                                  View PDF
+                                </a>
+                              ) : (
+                                <a
+                                  href={
+                                    msg.attachment.startsWith("/uploads/")
+                                      ? `http://localhost:3000${msg.attachment}`
+                                      : msg.attachment
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-600 underline"
+                                >
+                                  Download Attachment
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        <p className="text-xs mt-1 opacity-70">
+                          {new Date(msg.timestamp).toLocaleTimeString()}
+                        </p>
+                        {msg.senderEmail === user.email && messageId && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteMessage(messageId)}
+                            className="mt-0.5 text-xs opacity-70 hover:opacity-100 inline-flex items-center gap-0.5"
+                          >
+                            <Trash2 size={10} /> Delete
+                          </button>
                         )}
                       </div>
-                      <p className="text-xs mt-1 opacity-70">
-                        {new Date(msg.timestamp).toLocaleTimeString()}
-                      </p>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
 
               {/* Typing Indicator */}
               {typingUser && typingUser === selectedConversation.otherEmail && (
                 <div className="flex justify-start">
-                  <div className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg rounded-bl-none">
-                    <div className="flex gap-1">
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-100"></div>
-                      <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce delay-200"></div>
+                  <div className="bg-gray-200 text-gray-800 px-3 py-1 rounded-lg rounded-bl-none">
+                    <div className="flex gap-0.5">
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce"></div>
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-100"></div>
+                      <div className="w-1.5 h-1.5 bg-gray-500 rounded-full animate-bounce delay-200"></div>
                     </div>
                   </div>
                 </div>
@@ -497,12 +642,12 @@ const Chat = () => {
             {/* Message Input */}
             <form
               onSubmit={handleSendMessage}
-              className="p-4 border-t border-gray-200"
+              className="p-2 border-t border-gray-200 bg-white"
               encType="multipart/form-data"
             >
-              <div className="flex gap-2 items-center">
+              <div className="flex gap-1 items-center">
                 <label className="cursor-pointer flex items-center">
-                  <Plus size={22} className="text-[#67cffe] mr-1" />
+                  <Plus size={18} className="text-[#67cffe]" />
                   <input
                     type="file"
                     accept="image/*"
@@ -516,19 +661,19 @@ const Chat = () => {
                   value={messageInput}
                   onChange={(e) => handleTyping(e.target.value)}
                   placeholder="Type a message..."
-                  className="flex-1 px-4 py-2 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
+                  className="flex-1 px-3 py-1.5 text-sm border border-[#67cffe]/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#67cffe] focus:border-[#67cffe]"
                   disabled={loading}
                 />
                 <button
                   type="submit"
                   disabled={loading || (!messageInput.trim() && !attachment)}
-                  className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-full transition-all duration-300 flex items-center gap-2"
+                  className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-md hover:shadow-[#67cffe]/20 disabled:opacity-50 disabled:cursor-not-allowed text-white px-3 py-1.5 rounded-full transition-all duration-300 flex items-center"
                 >
-                  <Send size={18} />
+                  <Send size={16} />
                 </button>
               </div>
               {attachment && (
-                <div className="mt-2 flex items-center gap-2">
+                <div className="mt-1 flex items-center gap-2">
                   <span className="text-xs text-gray-600">
                     {attachment.name}
                   </span>
@@ -546,7 +691,7 @@ const Chat = () => {
         ) : (
           <div className="flex items-center justify-center h-full text-gray-500">
             <div className="text-center">
-              <p className="text-2xl mb-2">
+              <p className="text-lg mb-1">
                 Select a conversation to start chatting
               </p>
               <p className="text-sm">or create a new chat with a doctor</p>

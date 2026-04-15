@@ -20,6 +20,50 @@ const AuthProvider = ({ children }) => {
   const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
   const googleProvider = new GoogleAuthProvider();
 
+  const clearAuthSession = () => {
+    setUser(null);
+    setIsAdmin(false);
+    localStorage.removeItem("authToken");
+  };
+
+  const getProfileForEmail = async (firebaseUser, idTokenResult) => {
+    const encodedEmail = encodeURIComponent(firebaseUser.email);
+
+    const [userRes, doctorRes] = await Promise.all([
+      fetch(`${serverURL}/user/${encodedEmail}`),
+      fetch(`${serverURL}/doctor/${encodedEmail}`),
+    ]);
+
+    const matchedUser = userRes.ok ? await userRes.json() : null;
+    const doctorData = doctorRes.ok ? await doctorRes.json() : null;
+
+    // Block session if this email has no profile in either collection.
+    if (!matchedUser && !doctorData) {
+      return null;
+    }
+
+    let userRole = "user";
+    if (idTokenResult?.claims?.admin) {
+      userRole = "admin";
+    } else if (idTokenResult?.claims?.doctor || doctorData) {
+      userRole = "doctor";
+    } else if (matchedUser?.role) {
+      userRole = matchedUser.role;
+    }
+
+    return {
+      email: firebaseUser.email,
+      name:
+        matchedUser?.name ||
+        doctorData?.name ||
+        firebaseUser.displayName ||
+        firebaseUser.email.split("@")[0],
+      uid: matchedUser?.uid || doctorData?.uid || null,
+      img: matchedUser?.img || doctorData?.img || firebaseUser.photoURL || null,
+      role: userRole,
+    };
+  };
+
   const createUser = async (email, password) => {
     setLoading(true);
     try {
@@ -50,7 +94,12 @@ const AuthProvider = ({ children }) => {
   const signInUser = async (email, password) => {
     setLoading(true);
     try {
-      const cred = await signInWithEmailAndPassword(auth, email, password);
+      const normalizedEmail = email.trim().toLowerCase();
+      const cred = await signInWithEmailAndPassword(
+        auth,
+        normalizedEmail,
+        password,
+      );
       const firebaseUser = cred.user;
 
       // Check if email is verified
@@ -94,53 +143,19 @@ const AuthProvider = ({ children }) => {
 
       setIsAdmin(adminFlag);
 
-      // Determine role from Firebase claims
-      let userRole = "user"; // default
-      if (idTokenResult.claims.admin) {
-        userRole = "admin";
-      } else if (idTokenResult.claims.doctor) {
-        userRole = "doctor";
-      } else if (idTokenResult.claims.role) {
-        userRole = idTokenResult.claims.role;
+      const profile = await getProfileForEmail(firebaseUser, idTokenResult);
+      if (!profile) {
+        throw new Error(
+          "No user profile found for this email. Please sign up first.",
+        );
       }
 
-      // Fetch backend user info
-      const res = await fetch(`${serverURL}/user`);
-      const data = await res.json();
-      const matchedUser = data.find((u) => u.email === firebaseUser.email);
-
-      // Check if user is a doctor in doctorCollection
-      const doctorRes = await fetch(
-        `${serverURL}/doctor/${firebaseUser.email}`,
-      );
-      const doctorData = await doctorRes.json();
-      if (doctorData && !idTokenResult.claims.doctor && userRole !== "admin") {
-        userRole = "doctor";
-      }
-
-      console.log("Firebase claims:", idTokenResult.claims);
-      console.log("Matched user:", matchedUser);
-      console.log("Doctor profile:", doctorData);
-      console.log("Final role:", userRole);
-
-      setUser({
-        email: firebaseUser.email,
-        name:
-          matchedUser?.name ||
-          firebaseUser.displayName ||
-          firebaseUser.email.split("@")[0],
-        uid: matchedUser?.uid || null,
-        img: matchedUser?.img || null,
-        role: userRole,
-      });
-
-      console.log("User logged in with img:", matchedUser?.img);
+      setUser(profile);
+      console.log("User logged in:", profile.email, "role:", profile.role);
 
       return firebaseUser;
     } catch (error) {
-      setUser(null);
-      setIsAdmin(false);
-      localStorage.removeItem("authToken"); // Clear token on error
+      clearAuthSession();
       throw error;
     } finally {
       setLoading(false);
@@ -149,9 +164,7 @@ const AuthProvider = ({ children }) => {
 
   const signOutUser = () => {
     setLoading(true);
-    setIsAdmin(false);
-    setUser(null);
-    localStorage.removeItem("authToken"); // Clear JWT token
+    clearAuthSession();
     console.log("🔐 JWT token cleared");
     return signOut(auth).finally(() => setLoading(false));
   };
@@ -263,57 +276,20 @@ const AuthProvider = ({ children }) => {
 
       setIsAdmin(adminFlag);
 
-      // Determine role from Firebase claims
-      let userRole = "user";
-      if (idTokenResult.claims.admin) {
-        userRole = "admin";
-      } else if (idTokenResult.claims.doctor) {
-        userRole = "doctor";
-      } else if (idTokenResult.claims.role) {
-        userRole = idTokenResult.claims.role;
+      const profile = await getProfileForEmail(firebaseUser, idTokenResult);
+      if (!profile) {
+        throw new Error(
+          "No user profile found for this email. Please sign up first.",
+        );
       }
 
-      // Fetch backend user info
-      const res = await fetch(`${serverURL}/user`);
-      const data = await res.json();
-      const matchedUser = data.find((u) => u.email === firebaseUser.email);
-
-      // Check if user is a doctor in doctorCollection
-      const doctorRes = await fetch(
-        `${serverURL}/doctor/${firebaseUser.email}`,
-      );
-      const doctorData = await doctorRes.json();
-      if (doctorData && !idTokenResult.claims.doctor && userRole !== "admin") {
-        userRole = "doctor";
-      }
-
-      console.log("Firebase claims:", idTokenResult.claims);
-      console.log("Matched user:", matchedUser);
-      console.log("Doctor profile:", doctorData);
-      console.log("Final role:", userRole);
-
-      setUser({
-        email: firebaseUser.email,
-        name:
-          matchedUser?.name ||
-          firebaseUser.displayName ||
-          firebaseUser.email.split("@")[0],
-        uid: matchedUser?.uid || null,
-        img: matchedUser?.img || firebaseUser.photoURL || null,
-        role: userRole,
-      });
-
-      console.log(
-        "User logged in via Google with img:",
-        matchedUser?.img || firebaseUser.photoURL,
-      );
+      setUser(profile);
+      console.log("User logged in via Google:", profile.email);
 
       return firebaseUser;
     } catch (error) {
       console.error("❌ Google sign-in error:", error);
-      setUser(null);
-      setIsAdmin(false);
-      localStorage.removeItem("authToken");
+      clearAuthSession();
       throw error;
     } finally {
       setLoading(false);
@@ -325,14 +301,16 @@ const AuthProvider = ({ children }) => {
     const firebaseUser = auth.currentUser;
     if (!firebaseUser?.email) {
       console.log("refreshUser - no firebase user");
+      clearAuthSession();
       return;
     }
 
     try {
       console.log("refreshUser - fetching data for:", firebaseUser.email);
-      const res = await fetch(`${serverURL}/user`);
-      const data = await res.json();
-      const matchedUser = data.find((u) => u.email === firebaseUser.email);
+      const res = await fetch(
+        `${serverURL}/user/${encodeURIComponent(firebaseUser.email)}`,
+      );
+      const matchedUser = res.ok ? await res.json() : null;
 
       console.log("refreshUser - matchedUser:", matchedUser);
       if (matchedUser) {
@@ -345,6 +323,8 @@ const AuthProvider = ({ children }) => {
         console.log("User data refreshed - new img:", matchedUser.img);
       } else {
         console.log("refreshUser - user not found in database");
+        clearAuthSession();
+        await signOut(auth);
       }
     } catch (err) {
       console.error("Error refreshing user data:", err);
@@ -355,8 +335,7 @@ const AuthProvider = ({ children }) => {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (!firebaseUser?.email) {
-        setUser(null);
-        setIsAdmin(false);
+        clearAuthSession();
         setLoading(false);
         return;
       }
@@ -364,8 +343,7 @@ const AuthProvider = ({ children }) => {
       // Check if email is verified - if not, don't set user state
       if (!firebaseUser.emailVerified) {
         console.log("Email not verified, clearing user state");
-        setUser(null);
-        setIsAdmin(false);
+        clearAuthSession();
         setLoading(false);
         return;
       }
@@ -376,33 +354,42 @@ const AuthProvider = ({ children }) => {
         const adminFlag = !!idTokenResult.claims.admin;
         setIsAdmin(adminFlag);
 
-        const res = await fetch(`${serverURL}/user`);
-        const data = await res.json();
-        const matchedUser = data.find((u) => u.email === firebaseUser.email);
-
-        setUser({
-          email: firebaseUser.email,
-          name:
-            matchedUser?.name ||
-            firebaseUser.displayName ||
-            firebaseUser.email.split("@")[0],
-          uid: matchedUser?.uid || null,
-          img: matchedUser?.img || null,
-          role: matchedUser?.role || "user",
+        // Re-issue JWT on refresh to keep token and Firebase session aligned.
+        const tokenResponse = await fetch(`${serverURL}/api/login`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            email: firebaseUser.email,
+            firebaseUid: firebaseUser.uid,
+            isAdmin: adminFlag,
+          }),
         });
 
-        console.log("Auth state changed - user img:", matchedUser?.img);
+        if (!tokenResponse.ok) {
+          clearAuthSession();
+          await signOut(auth);
+          setLoading(false);
+          return;
+        }
+
+        const tokenData = await tokenResponse.json();
+        localStorage.setItem("authToken", tokenData.token);
+
+        const profile = await getProfileForEmail(firebaseUser, idTokenResult);
+        if (!profile) {
+          clearAuthSession();
+          await signOut(auth);
+          setLoading(false);
+          return;
+        }
+
+        setUser(profile);
+        console.log("Auth state changed - user:", profile.email);
       } catch (err) {
         console.error("Error fetching user details:", err);
-        // Ensure user object has role field even on error
-        setUser({
-          email: firebaseUser.email,
-          name: firebaseUser.displayName || firebaseUser.email.split("@")[0],
-          uid: null,
-          img: null,
-          role: "user", // Default to user role if backend fetch fails
-        });
-        setIsAdmin(false);
+        clearAuthSession();
       } finally {
         setLoading(false);
       }

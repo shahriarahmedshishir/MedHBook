@@ -43,6 +43,27 @@ const verifyJWT = (req, res, next) => {
   }
 };
 
+const verifyAdmin = async (req, res, next) => {
+  try {
+    if (!req.user?.email) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const requester = await userCollection.findOne(
+      { email: req.user.email },
+      { projection: { role: 1 } },
+    );
+
+    if (!requester || requester.role !== "admin") {
+      return res.status(403).json({ error: "Admin access required" });
+    }
+
+    next();
+  } catch (err) {
+    return res.status(500).json({ error: "Admin authorization failed" });
+  }
+};
+
 app.use(express.json());
 const port = process.env.PORT || 3000;
 
@@ -109,6 +130,7 @@ const upload = multer({ storage });
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASSWORD}@cluster0.1atxbvs.mongodb.net/?retryWrites=true&w=majority`;
 let userCollection,
   userPrescription,
+  userXrays,
   userReports,
   doctorCollection,
   doctorApplicationCollection,
@@ -126,6 +148,7 @@ async function connectDB() {
     const db = client.db("MedHBook");
     userCollection = db.collection("userdata");
     userPrescription = db.collection("userPrescription");
+    userXrays = db.collection("userXrays");
     userReports = db.collection("userReports");
     doctorCollection = db.collection("doctorCollection");
     doctorApplicationCollection = db.collection("doctorApplications");
@@ -415,6 +438,12 @@ app.post("/api/login", async (req, res) => {
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (user.blocked) {
+      return res.status(403).json({
+        error: "This account is blocked. Please contact an administrator.",
+      });
     }
 
     // If user is admin (from Firebase claims), update their role in the database
@@ -952,6 +981,154 @@ app.get("/admin/statistics", verifyJWT, async (req, res) => {
   }
 });
 
+// Search accounts by email/name/uid and role (admin only)
+app.get("/admin/accounts", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const { query = "", role = "all" } = req.query;
+    const normalizedQuery = query.trim();
+    const filter = { role: { $in: ["user", "doctor"] } };
+
+    if (role === "user" || role === "doctor") {
+      filter.role = role;
+    } else if (role !== "all") {
+      return res.status(400).json({ error: "Invalid role filter" });
+    }
+
+    if (normalizedQuery) {
+      const searchConditions = [
+        { email: { $regex: normalizedQuery, $options: "i" } },
+        { name: { $regex: normalizedQuery, $options: "i" } },
+      ];
+
+      const asNumber = Number(normalizedQuery);
+      if (!Number.isNaN(asNumber)) {
+        searchConditions.push({ uid: asNumber });
+      }
+
+      filter.$or = searchConditions;
+    }
+
+    const accounts = await userCollection
+      .find(filter, {
+        projection: {
+          name: 1,
+          email: 1,
+          uid: 1,
+          role: 1,
+          img: 1,
+          blocked: 1,
+          blockedAt: 1,
+          mobileNo: 1,
+        },
+      })
+      .sort({ role: 1, name: 1, email: 1 })
+      .toArray();
+
+    res.json({ success: true, accounts });
+  } catch (err) {
+    console.error("Error searching admin accounts:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Block or unblock an account (admin only)
+app.patch(
+  "/admin/accounts/:id/block",
+  verifyJWT,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { blocked } = req.body;
+
+      if (!ObjectId.isValid(id)) {
+        return res.status(400).json({ error: "Invalid account ID" });
+      }
+
+      if (typeof blocked !== "boolean") {
+        return res.status(400).json({ error: "blocked must be true or false" });
+      }
+
+      const account = await userCollection.findOne({ _id: new ObjectId(id) });
+      if (!account) {
+        return res.status(404).json({ error: "Account not found" });
+      }
+
+      if (account.role === "admin") {
+        return res
+          .status(400)
+          .json({ error: "Admin accounts cannot be managed here" });
+      }
+
+      if (blocked && account.email === req.user.email) {
+        return res
+          .status(400)
+          .json({ error: "You cannot block your own account" });
+      }
+
+      await userCollection.updateOne(
+        { _id: new ObjectId(id) },
+        {
+          $set: {
+            blocked,
+            blockedAt: blocked ? new Date() : null,
+          },
+        },
+      );
+
+      res.json({
+        success: true,
+        message: blocked
+          ? "Account blocked successfully"
+          : "Account unblocked successfully",
+      });
+    } catch (err) {
+      console.error("Error blocking account:", err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
+// Delete an account (admin only)
+app.delete("/admin/accounts/:id", verifyJWT, verifyAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ error: "Invalid account ID" });
+    }
+
+    const account = await userCollection.findOne({ _id: new ObjectId(id) });
+    if (!account) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (account.role === "admin") {
+      return res
+        .status(400)
+        .json({ error: "Admin accounts cannot be managed here" });
+    }
+
+    if (account.email === req.user.email) {
+      return res
+        .status(400)
+        .json({ error: "You cannot delete your own account" });
+    }
+
+    await userCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (account.role === "doctor") {
+      await doctorCollection.deleteOne({ email: account.email });
+    }
+
+    await doctorApplicationCollection.deleteMany({ email: account.email });
+
+    res.json({ success: true, message: "Account deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting account:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ===== DOCTOR APPLICATIONS =====
 
 // Submit doctor application
@@ -1310,15 +1487,15 @@ app.post("/xrays", verifyJWT, upload.array("files"), async (req, res) => {
       createdAt: new Date(),
     }));
 
-    await userPrescription.insertMany(docs);
+    await userXrays.insertMany(docs);
     res.status(201).json({ success: true, data: docs });
   } catch (err) {
-    console.error("Error uploading prescriptions:", err);
+    console.error("Error uploading xrays:", err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Fetch prescriptions (by email or uid)
+// Fetch xrays (by email or uid)
 app.get("/xrays", verifyJWT, async (req, res) => {
   try {
     const { email, uid } = req.query;
@@ -1326,23 +1503,23 @@ app.get("/xrays", verifyJWT, async (req, res) => {
       return res.status(400).json({ message: "Email or UID required" });
 
     const filter = uid ? { uid: parseInt(uid) } : { email };
-    const prescriptions = await userPrescription
+    const xrays = await userXrays
       .find(filter)
       .sort({ createdAt: -1 })
       .toArray();
 
-    res.json(prescriptions);
+    res.json(xrays);
   } catch (err) {
-    console.error("Error fetching prescriptions:", err);
+    console.error("Error fetching xrays:", err);
     res.status(500).json({ message: err.message });
   }
 });
 
-// Delete prescription
+// Delete xray
 app.delete("/xrays/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
-    const doc = await userPrescription.findOne({ _id: new ObjectId(id) });
+    const doc = await userXrays.findOne({ _id: new ObjectId(id) });
     if (!doc) return res.status(404).json({ message: "Xrays not found" });
 
     if (doc.img) {
@@ -1351,7 +1528,7 @@ app.delete("/xrays/:id", verifyJWT, async (req, res) => {
       if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
     }
 
-    await userPrescription.deleteOne({ _id: new ObjectId(id) });
+    await userXrays.deleteOne({ _id: new ObjectId(id) });
     res.json({ success: true });
   } catch (err) {
     console.error("Error deleting Xrays:", err);
@@ -1601,6 +1778,88 @@ app.put("/messages/:id/read", verifyJWT, async (req, res) => {
   }
 });
 
+// Mark all messages in a conversation as read for current user
+app.put("/messages/read-conversation", verifyJWT, async (req, res) => {
+  try {
+    const { userEmail, otherEmail } = req.body;
+
+    if (!userEmail || !otherEmail) {
+      return res
+        .status(400)
+        .json({ message: "userEmail and otherEmail required" });
+    }
+
+    if (req.user.email !== userEmail) {
+      return res.status(403).json({ message: "Forbidden" });
+    }
+
+    const result = await messageCollection.updateMany(
+      {
+        senderEmail: otherEmail,
+        recipientEmail: userEmail,
+        read: false,
+      },
+      { $set: { read: true } },
+    );
+
+    const senderSocketId = userSockets.get(otherEmail);
+    if (senderSocketId && result.modifiedCount > 0) {
+      io.to(senderSocketId).emit("messages:seen", {
+        readerEmail: userEmail,
+        otherEmail,
+      });
+    }
+
+    res.json({ success: true, modifiedCount: result.modifiedCount });
+  } catch (err) {
+    console.error("Error marking conversation as read:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// Delete message (sender only)
+app.delete("/messages/:id", verifyJWT, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid message ID" });
+    }
+
+    const message = await messageCollection.findOne({ _id: new ObjectId(id) });
+    if (!message) {
+      return res.status(404).json({ message: "Message not found" });
+    }
+
+    if (message.senderEmail !== req.user.email) {
+      return res
+        .status(403)
+        .json({ message: "Only sender can delete message" });
+    }
+
+    await messageCollection.deleteOne({ _id: new ObjectId(id) });
+
+    if (message.attachment && message.attachment.startsWith("/uploads/")) {
+      const fileName = message.attachment.split("/uploads/")[1];
+      const filePath = path.join(uploadsDir, fileName);
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    }
+
+    const recipientSocketId = userSockets.get(message.recipientEmail);
+    if (recipientSocketId) {
+      io.to(recipientSocketId).emit("message:deleted", {
+        messageId: id,
+      });
+    }
+
+    res.json({ success: true, messageId: id });
+  } catch (err) {
+    console.error("Error deleting message:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // ===== BLOGS =====
 
 // Create a blog post (doctors only)
@@ -1765,16 +2024,20 @@ io.on("connection", (socket) => {
         read: false,
       };
 
-      await messageCollection.insertOne(newMessage);
+      const result = await messageCollection.insertOne(newMessage);
+      const messageWithId = {
+        ...newMessage,
+        _id: result.insertedId.toString(),
+      };
 
       // Send to recipient if they're online
       const recipientSocketId = userSockets.get(recipientEmail);
       if (recipientSocketId) {
-        io.to(recipientSocketId).emit("message:receive", newMessage);
+        io.to(recipientSocketId).emit("message:receive", messageWithId);
       }
 
       // Send confirmation to sender
-      socket.emit("message:sent", { success: true, data: newMessage });
+      socket.emit("message:sent", { success: true, data: messageWithId });
       console.log(`💬 Message sent from ${senderEmail} to ${recipientEmail}`);
     } catch (err) {
       console.error("Error sending message:", err);
