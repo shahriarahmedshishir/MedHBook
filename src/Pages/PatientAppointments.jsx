@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import AuthContext from "../Components/Context/AuthContext";
 import { authGet, authDelete } from "../utils/api";
-import RootLayout from "../Components/Layouts/RootLayout";
 import Header from "../Components/Shared/Header";
 import Footer from "../Components/Shared/Footer";
 
@@ -39,6 +38,7 @@ const PatientAppointments = () => {
 
   useEffect(() => {
     fetchAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const handleCancel = async (id) => {
@@ -60,14 +60,9 @@ const PatientAppointments = () => {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="flex-shrink-0 z-50">
-        <Header />
-      </div>
-
-      {/* Content — flex grow to fill space */}
-      <main className="flex-1 overflow-y-auto">
+    <div className="min-h-screen flex flex-col">
+      <Header />
+      <main className="flex-1 overflow-y-auto w-full">
         <div className="max-w-5xl mx-auto px-4 py-8">
           <h2 className="text-2xl font-bold mb-6 text-[#304d5d]">
             My Appointments
@@ -148,11 +143,7 @@ const PatientAppointments = () => {
           )}
         </div>
       </main>
-
-      {/* Fixed Footer */}
-      <div className="flex-shrink-0 z-50">
-        <Footer />
-      </div>
+      <Footer />
     </div>
   );
 };

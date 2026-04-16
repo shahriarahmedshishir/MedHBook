@@ -171,28 +171,14 @@ const PatientHome = () => {
         </div>
       </div>
 
-      {/* Apply to be a Doctor Section */}
-      <div className="max-w-6xl w-full mx-auto mb-4 relative z-10 animate-fadeIn">
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl shadow-2xl px-6 py-4 text-white border border-white/20">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <GraduationCap className="w-10 h-10" />
-              <div>
-                <h3 className="text-base font-bold">Are you a Doctor?</h3>
-                <p className="text-white/90 text-xs mt-0.5">
-                  Join our platform as a healthcare provider
-                </p>
-              </div>
-            </div>
-            <Link
-              to="/apply-doctor"
-              className="bg-white text-indigo-600 px-6 py-2 rounded-full font-semibold text-sm hover:shadow-xl hover:scale-105 transition-all duration-300 whitespace-nowrap"
-            >
-              Apply Now
-            </Link>
-          </div>
-        </div>
-      </div>
+      {/* Floating Apply as Doctor Button */}
+      <Link
+        to="/apply-doctor"
+        className="fixed top-24 right-6 bg-linear-to-r from-indigo-500 to-purple-600 text-white px-6 py-3 rounded-full font-semibold text-sm shadow-2xl border border-white/20 hover:shadow-2xl hover:scale-110 transition-all duration-300 z-20 flex items-center gap-2 animate-slideInFromLeft"
+      >
+        <GraduationCap className="w-5 h-5" />
+        <span>Apply as Doctor</span>
+      </Link>
     </div>
   );
 };

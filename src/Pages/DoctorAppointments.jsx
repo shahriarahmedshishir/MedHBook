@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useContext } from "react";
 import AuthContext from "../Components/Context/AuthContext";
-import { authGet, authPost, authFetch } from "../utils/api";
-import RootLayout from "../Components/Layouts/RootLayout";
+import { authGet, authFetch } from "../utils/api";
 import Header from "../Components/Shared/Header";
 import Footer from "../Components/Shared/Footer";
 
@@ -42,6 +41,7 @@ const DoctorAppointments = () => {
     if (!userLoading && user?.email) {
       fetchAppointments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, userLoading]);
 
   // Handle Approve / Reject
@@ -69,12 +69,9 @@ const DoctorAppointments = () => {
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50">
-      {/* Header */}
+    <div className="min-h-screen flex flex-col">
       <Header />
-
-      {/* Content — flex grow to fill space */}
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto w-full">
         <div className="p-6 max-w-5xl mx-auto">
           <h2 className="text-2xl font-bold mb-6 text-[#007b8f]">
             My Appointments
@@ -166,8 +163,6 @@ const DoctorAppointments = () => {
           )}
         </div>
       </main>
-
-      {/* Fixed Footer */}
       <Footer />
     </div>
   );

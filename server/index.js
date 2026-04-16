@@ -71,6 +71,8 @@ const port = process.env.PORT || 3000;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${port}`;
 
 // ===== UTILITY FUNCTIONS =====
+const MIN_APPOINTMENT_GAP_MINUTES = 5;
+
 // Generate 6-digit secret code
 const generateSecretCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
@@ -217,73 +219,50 @@ app.post("/appointments", verifyJWT, async (req, res) => {
     };
 
     const appointmentTimeInMinutes = parseTime(appointmentTime);
-    const timeWindowStart = appointmentTimeInMinutes;
-    const timeWindowEnd = appointmentTimeInMinutes + 10; // 10-minute window
 
-    // Check for existing appointments on THE SAME DATE with time conflict
+    // Enforce a minimum gap between appointments on the same date/chamber.
     const conflictingAppointment = await appointmentCollection.findOne({
       doctorEmail,
       chamber,
       appointmentDate, // Must be same date
       $expr: {
-        $and: [
+        $lt: [
           {
-            $gte: [
-              {
-                $add: [
-                  {
-                    $multiply: [
-                      {
-                        $toInt: {
-                          $substr: ["$appointmentTime", 0, 2],
+            $abs: {
+              $subtract: [
+                {
+                  $add: [
+                    {
+                      $multiply: [
+                        {
+                          $toInt: {
+                            $substr: ["$appointmentTime", 0, 2],
+                          },
                         },
-                      },
-                      60,
-                    ],
-                  },
-                  {
-                    $toInt: {
-                      $substr: ["$appointmentTime", 3, 2],
+                        60,
+                      ],
                     },
-                  },
-                ],
-              },
-              timeWindowStart,
-            ],
-          },
-          {
-            $lt: [
-              {
-                $add: [
-                  {
-                    $multiply: [
-                      {
-                        $toInt: {
-                          $substr: ["$appointmentTime", 0, 2],
-                        },
+                    {
+                      $toInt: {
+                        $substr: ["$appointmentTime", 3, 2],
                       },
-                      60,
-                    ],
-                  },
-                  {
-                    $toInt: {
-                      $substr: ["$appointmentTime", 3, 2],
                     },
-                  },
-                ],
-              },
-              timeWindowEnd,
-            ],
+                  ],
+                },
+                appointmentTimeInMinutes,
+              ],
+            },
           },
+          MIN_APPOINTMENT_GAP_MINUTES,
         ],
       },
-      status: { $in: ["pending", "confirmed"] },
+      status: { $in: ["pending", "confirmed", "approved"] },
     });
 
     if (conflictingAppointment) {
       return res.status(409).json({
         message:
-          "This time slot is not available on this date. Please select another time at least 10 minutes apart.",
+          "This time slot is not available. Please keep at least a 5-minute gap between appointments.",
         conflictTime: conflictingAppointment.appointmentTime,
       });
     }
@@ -344,25 +323,26 @@ app.get("/appointments/patient/:patientEmail", verifyJWT, async (req, res) => {
 // Check booked time slots for a doctor and chamber
 app.get("/appointments/booked/slots", verifyJWT, async (req, res) => {
   try {
-    const { doctorEmail, chamber } = req.query;
+    const { doctorEmail, chamber, appointmentDate } = req.query;
 
-    if (!doctorEmail || !chamber) {
+    if (!doctorEmail || !chamber || !appointmentDate) {
       return res
         .status(400)
-        .json({ message: "Missing doctorEmail or chamber" });
+        .json({ message: "Missing doctorEmail, chamber, or appointmentDate" });
     }
 
-    // Get all pending and confirmed appointments for this doctor and chamber
+    // Get all active appointments for this doctor and chamber
     const bookedAppointments = await appointmentCollection
       .find({
         doctorEmail,
         chamber,
-        status: { $in: ["pending", "confirmed"] },
+        appointmentDate,
+        status: { $in: ["pending", "confirmed", "approved"] },
       })
       .project({ appointmentTime: 1 })
       .toArray();
 
-    // Extract times and calculate blocked windows (time ± 10 minutes)
+    // Extract times and calculate blocked windows (minimum 5-minute gap)
     const blockedSlots = new Set();
     bookedAppointments.forEach((apt) => {
       // Parse time to minutes
@@ -376,9 +356,9 @@ app.get("/appointments/booked/slots", verifyJWT, async (req, res) => {
 
       try {
         const timeInMinutes = parseTime(apt.appointmentTime);
-        // Block from time-5 to time+10 (current appointment gets 5 min before and 10 min after)
-        for (let i = timeInMinutes - 5; i < timeInMinutes + 10; i++) {
-          blockedSlots.add(i);
+        // Any slot within 5 minutes of an existing appointment is blocked.
+        for (let i = timeInMinutes - 4; i <= timeInMinutes + 4; i++) {
+          if (i >= 0 && i < 24 * 60) blockedSlots.add(i);
         }
       } catch (e) {
         console.error("Error parsing time:", apt.appointmentTime, e);
@@ -390,7 +370,7 @@ app.get("/appointments/booked/slots", verifyJWT, async (req, res) => {
       bookedAppointments,
       blockedSlots: Array.from(blockedSlots),
       message:
-        "Each appointment blocks a 10-minute window (5 mins before, appointment, 5 mins after)",
+        "Each appointment enforces a minimum 5-minute gap from nearby time slots.",
     });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -819,7 +799,20 @@ app.get("/search/doctors", async (req, res) => {
     }
 
     // Only return from doctorCollection (not userCollection)
-    const doctors = await doctorCollection.find(filter).toArray();
+    let doctors = await doctorCollection.find(filter).toArray();
+
+    // Filter out admin accounts by checking their actual role in userCollection
+    doctors = await Promise.all(
+      doctors.map(async (d) => {
+        const user = await userCollection.findOne({ email: d.email });
+        return { ...d, actualRole: user?.role };
+      }),
+    );
+
+    // Exclude any doctor whose actual user role is admin or superadmin
+    doctors = doctors.filter(
+      (d) => d.actualRole !== "admin" && d.actualRole !== "superadmin",
+    );
     console.log(
       "Search results:",
       doctors.map((d) => ({

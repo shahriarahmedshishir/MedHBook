@@ -4,9 +4,9 @@ import Footer from "../Shared/Footer";
 
 const PublicLayout = ({ children }) => {
   return (
-    <div>
+    <div className="min-h-screen flex flex-col">
       <Header />
-      {children}
+      <main className="flex-1 flex flex-col">{children}</main>
       <Footer />
     </div>
   );
