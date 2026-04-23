@@ -7,14 +7,24 @@ import {
 } from "lucide-react";
 import { FileText } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect, useContext } from "react";
 import Logo from "../Components/Shared/Logo";
+import AuthContext from "../Components/Context/AuthContext";
+import { authGet } from "../utils/api";
 
 const PatientHome = () => {
+  const { user } = useContext(AuthContext);
   const handleReminder = () => alert("Reminder feature coming soon!");
 
   const [height, setHeight] = useState("");
   const [weight, setWeight] = useState("");
+  const [counts, setCounts] = useState({
+    xrays: 0,
+    digitalPrescriptions: 0,
+    prescriptions: 0,
+    reports: 0,
+  });
+  const [loadingCounts, setLoadingCounts] = useState(true);
 
   const bmi =
     height && weight
@@ -28,6 +38,55 @@ const PatientHome = () => {
     if (bmi < 30) return "Overweight";
     return "Obese";
   };
+
+  // Fetch counts for each section
+  useEffect(() => {
+    const fetchCounts = async () => {
+      if (!user?.email) return;
+
+      try {
+        setLoadingCounts(true);
+
+        // Fetch all counts in parallel
+        const [xraysRes, digitalPresRes, presRes, reportsRes] =
+          await Promise.all([
+            authGet(`/xrays/${user.email}`),
+            authGet(
+              `/digital-prescriptions?email=${encodeURIComponent(user.email)}`,
+            ),
+            authGet(`/prescriptions/${user.email}`),
+            authGet(`/reports/${user.email}`),
+          ]);
+
+        const xraysData = await xraysRes.json();
+        const digitalPresData = await digitalPresRes.json();
+        const presData = await presRes.json();
+        const reportsData = await reportsRes.json();
+
+        setCounts({
+          xrays: Array.isArray(xraysData) ? xraysData.length : 0,
+          digitalPrescriptions: Array.isArray(digitalPresData)
+            ? digitalPresData.length
+            : 0,
+          prescriptions: Array.isArray(presData) ? presData.length : 0,
+          reports: Array.isArray(reportsData) ? reportsData.length : 0,
+        });
+      } catch (error) {
+        console.error("Error fetching counts:", error);
+        // Set defaults on error
+        setCounts({
+          xrays: 0,
+          digitalPrescriptions: 0,
+          prescriptions: 0,
+          reports: 0,
+        });
+      } finally {
+        setLoadingCounts(false);
+      }
+    };
+
+    fetchCounts();
+  }, [user?.email]);
 
   return (
     <div className="h-[calc(100vh-7rem)]  bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] p-4 relative overflow-hidden flex flex-col">
@@ -57,18 +116,23 @@ const PatientHome = () => {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Link
               to="/patient/xrays"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start relative"
             >
               <Activity className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
               <h3 className="font-bold text-[#304d5d] text-sm">X-Rays</h3>
               <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 View and download scans
               </p>
+              {!loadingCounts && (
+                <span className="absolute top-2 right-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                  {counts.xrays}
+                </span>
+              )}
             </Link>
 
             <Link
               to="/patient/digital-prescriptions"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start relative"
             >
               <FileText className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
               <h3 className="font-bold text-[#304d5d] text-sm">
@@ -77,11 +141,16 @@ const PatientHome = () => {
               <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 Download and view prescriptions
               </p>
+              {!loadingCounts && (
+                <span className="absolute top-2 right-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                  {counts.digitalPrescriptions}
+                </span>
+              )}
             </Link>
 
             <Link
               to="/patient/prescriptions"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start relative"
             >
               <Pill className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
               <h3 className="font-bold text-[#304d5d] text-sm">
@@ -90,17 +159,27 @@ const PatientHome = () => {
               <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 Doctor-issued medicines
               </p>
+              {!loadingCounts && (
+                <span className="absolute top-2 right-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                  {counts.prescriptions}
+                </span>
+              )}
             </Link>
 
             <Link
               to="/patient/reports"
-              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start"
+              className="group bg-gradient-to-br from-white to-[#67cffe]/5 rounded-xl p-3 border-2 border-[#67cffe]/20 hover:border-[#67cffe] hover:shadow-xl hover:shadow-[#67cffe]/20 transition-all duration-300 hover:-translate-y-1 flex flex-col items-start relative"
             >
               <File className="w-7 h-7 text-[#67cffe] mb-2 group-hover:scale-110 transition-transform duration-300" />
               <h3 className="font-bold text-[#304d5d] text-sm">Reports</h3>
               <p className="text-xs text-gray-500 mt-0.5 leading-tight">
                 Lab & diagnostic results
               </p>
+              {!loadingCounts && (
+                <span className="absolute top-2 right-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                  {counts.reports}
+                </span>
+              )}
             </Link>
           </div>
 

@@ -713,87 +713,134 @@ const SearchDoctor = () => {
               Found {doctors.length} Doctor{doctors.length !== 1 ? "s" : ""}
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {doctors.map((doctor, index) => (
                 <div
                   key={index}
-                  className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl hover:shadow-[#67cffe]/20 transition-all duration-300 transform hover:-translate-y-1 border border-white/20 animate-scaleIn"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  className="group bg-white/80 backdrop-blur-sm rounded-xl shadow-md hover:shadow-xl hover:shadow-[#67cffe]/15 transition-all duration-300 border border-white/50 hover:border-[#67cffe]/30 overflow-hidden animate-scaleIn"
+                  style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <div className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] h-24"></div>
+                  {/* Minimalist Header with gradient line */}
+                  <div className="h-1 bg-gradient-to-r from-[#304d5d] to-[#67cffe]"></div>
 
-                  <div className="p-6 -mt-12 relative">
-                    {/* Doctor Avatar */}
-                    {doctor.img && getFullImageURL(doctor.img) ? (
-                      <img
-                        src={getFullImageURL(doctor.img)}
-                        alt={doctor.name}
-                        className="w-20 h-20 rounded-full border-4 border-white mb-4 object-cover shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-br from-[#67cffe]/20 to-[#304d5d]/10 mb-4 flex items-center justify-center shadow-lg">
-                        <span className="text-2xl font-bold text-[#304d5d]">
-                          {doctor.name?.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-
-                    {/* Doctor Info */}
-                    <h3 className="text-xl font-bold text-[#304d5d] mb-3">
-                      {doctor.name || "N/A"}
-                    </h3>
-
-                    {doctor.doctorType && (
-                      <div className="mb-3">
-                        <div className="flex flex-wrap gap-2">
-                          {Array.isArray(doctor.doctorType) ? (
-                            doctor.doctorType.map((type, idx) => (
-                              <span
-                                key={idx}
-                                className="inline-flex items-center gap-1 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-3 py-1 rounded-full text-xs font-semibold"
-                              >
-                                <Award size={12} />
-                                {type}
-                              </span>
-                            ))
-                          ) : (
-                            <span className="inline-flex items-center gap-1 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-3 py-1 rounded-full text-xs font-semibold">
-                              <Award size={12} />
-                              {doctor.doctorType}
-                            </span>
-                          )}
+                  <div className="p-5">
+                    {/* Doctor Avatar with name */}
+                    <div className="flex items-start gap-4 mb-4">
+                      {doctor.img && getFullImageURL(doctor.img) ? (
+                        <img
+                          src={getFullImageURL(doctor.img)}
+                          alt={doctor.name}
+                          className="w-14 h-14 rounded-full border-2 border-[#67cffe]/30 object-cover shadow-md flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full border-2 border-[#67cffe]/30 bg-gradient-to-br from-[#67cffe]/20 to-[#304d5d]/10 flex items-center justify-center shadow-md flex-shrink-0">
+                          <span className="text-lg font-bold text-[#304d5d]">
+                            {doctor.name?.charAt(0).toUpperCase()}
+                          </span>
                         </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-[#304d5d] truncate group-hover:text-[#67cffe] transition-colors">
+                          Dr. {doctor.name || "N/A"}
+                        </h3>
+                        {doctor.specialization && (
+                          <p className="text-xs text-[#67cffe] font-semibold mt-0.5">
+                            {doctor.specialization}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Doctor Type Tags */}
+                    {doctor.doctorType && (
+                      <div className="mb-3 flex flex-wrap gap-1">
+                        {Array.isArray(doctor.doctorType) ? (
+                          doctor.doctorType.slice(0, 2).map((type, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-0.5 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-2 py-0.5 rounded-full text-xs font-semibold"
+                            >
+                              <Award size={10} />
+                              {type}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            <Award size={10} />
+                            {doctor.doctorType}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {doctor.specialization && (
-                      <div className="text-gray-700 mb-3">
-                        <p className="text-xs text-gray-600 font-semibold">
-                          Specialization:
-                        </p>
-                        <p className="text-sm font-bold text-[#67cffe]">
-                          {doctor.specialization}
-                        </p>
-                      </div>
-                    )}
+                    {/* Quick Info Grid */}
+                    <div className="space-y-2 mb-4 text-sm">
+                      {doctor.yearsOfExperience && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <span className="text-[#67cffe] font-bold">
+                            {doctor.yearsOfExperience}y
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            Experience
+                          </span>
+                        </div>
+                      )}
 
+                      {doctor.location && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <MapPin
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600 truncate">
+                            {doctor.location}
+                          </p>
+                        </div>
+                      )}
+
+                      {doctor.email && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Mail
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600 truncate">
+                            {doctor.email}
+                          </p>
+                        </div>
+                      )}
+
+                      {doctor.phone && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Phone
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600">
+                            {doctor.phone}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Degree Badge */}
                     {doctor.degree && (
-                      <div className="mb-3">
-                        <p className="text-xs text-gray-600 mb-1 font-semibold">
-                          Degree:
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 font-semibold mb-1">
+                          Qualifications
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {Array.isArray(doctor.degree) ? (
-                            doctor.degree.map((deg, idx) => (
+                            doctor.degree.slice(0, 2).map((deg, idx) => (
                               <span
                                 key={idx}
-                                className="bg-[#304d5d]/10 text-[#304d5d] border border-[#304d5d]/20 px-2 py-0.5 rounded-full text-xs font-semibold"
+                                className="bg-[#304d5d]/10 text-[#304d5d] px-2 py-0.5 rounded text-xs font-medium"
                               >
                                 {deg}
                               </span>
                             ))
                           ) : (
-                            <span className="bg-[#304d5d]/10 text-[#304d5d] border border-[#304d5d]/20 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            <span className="bg-[#304d5d]/10 text-[#304d5d] px-2 py-0.5 rounded text-xs font-medium">
                               {doctor.degree}
                             </span>
                           )}
@@ -801,77 +848,23 @@ const SearchDoctor = () => {
                       </div>
                     )}
 
-                    {doctor.college && (
-                      <div className="text-gray-700 mb-3">
-                        <p className="text-xs text-gray-600 font-semibold">
-                          College:
-                        </p>
-                        <p className="text-sm font-medium">{doctor.college}</p>
-                      </div>
-                    )}
-
-                    {doctor.yearsOfExperience && (
-                      <div className="text-gray-700 mb-3">
-                        <p className="text-xs text-gray-600 font-semibold">
-                          Experience:
-                        </p>
-                        <p className="text-sm font-bold text-[#67cffe]">
-                          {doctor.yearsOfExperience} years
-                        </p>
-                      </div>
-                    )}
-
-                    {doctor.email && (
-                      <div className="flex items-center text-gray-700 mb-2">
-                        <Mail size={16} className="mr-2 text-[#67cffe]" />
-                        <p className="text-sm break-all">{doctor.email}</p>
-                      </div>
-                    )}
-
-                    {doctor.phone && (
-                      <div className="flex items-center text-gray-700 mb-2">
-                        <Phone size={16} className="mr-2 text-[#67cffe]" />
-                        <p className="text-sm">{doctor.phone}</p>
-                      </div>
-                    )}
-
-                    {doctor.location && (
-                      <div className="flex items-center text-gray-700 mb-4">
-                        <MapPin size={16} className="mr-2 text-[#67cffe]" />
-                        <p className="text-sm">{doctor.location}</p>
-                      </div>
-                    )}
-
-                    {doctor.experience && (
-                      <p className="text-sm text-gray-700 mb-4">
-                        <span className="font-bold">Experience:</span>{" "}
-                        {doctor.experience} years
-                      </p>
-                    )}
-
-                    {doctor.bio && (
-                      <p className="text-sm text-gray-600 mb-4 italic">
-                        {doctor.bio}
-                      </p>
-                    )}
-
                     {/* Action Buttons */}
-                    <div className="grid grid-cols-2 gap-2 mt-3">
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-200">
                       <button
                         onClick={() =>
                           navigate(`/doctor-profile/${doctor._id}`, {
                             state: { doctor },
                           })
                         }
-                        className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                        className="px-3 py-2 bg-white border border-[#67cffe] text-[#67cffe] hover:bg-[#67cffe]/10 font-semibold text-sm rounded-lg transition-all duration-200 group-hover:border-[#67cffe] group-hover:shadow-md"
                       >
                         Profile
                       </button>
                       <button
                         onClick={() => handleAppointmentClick(doctor)}
-                        className="bg-gradient-to-r from-[#67cffe] to-[#304d5d] hover:shadow-lg hover:shadow-[#304d5d]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                        className="px-3 py-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-semibold text-sm rounded-lg transition-all duration-200 hover:-translate-y-0.5"
                       >
-                        Appointment
+                        Book
                       </button>
                     </div>
                   </div>
@@ -898,126 +891,158 @@ const SearchDoctor = () => {
               Available Doctors
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
               {doctors.map((doctor, index) => (
                 <div
                   key={index}
-                  className="bg-white/90 backdrop-blur-sm rounded-2xl shadow-xl overflow-hidden hover:shadow-2xl hover:shadow-[#67cffe]/20 transition-all duration-300 transform hover:-translate-y-1 border border-white/20 animate-scaleIn"
-                  style={{ animationDelay: `${index * 0.1}s` }}
+                  className="group bg-white/80 backdrop-blur-sm rounded-xl shadow-md hover:shadow-xl hover:shadow-[#67cffe]/15 transition-all duration-300 border border-white/50 hover:border-[#67cffe]/30 overflow-hidden animate-scaleIn"
+                  style={{ animationDelay: `${index * 0.05}s` }}
                 >
-                  <div className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] h-24"></div>
+                  {/* Minimalist Header with gradient line */}
+                  <div className="h-1 bg-gradient-to-r from-[#304d5d] to-[#67cffe]"></div>
 
-                  <div className="p-6 -mt-12 relative">
-                    {/* Doctor Avatar */}
-                    {doctor.img && getFullImageURL(doctor.img) ? (
-                      <img
-                        src={getFullImageURL(doctor.img)}
-                        alt={doctor.name}
-                        className="w-20 h-20 rounded-full border-4 border-white mb-4 object-cover shadow-lg"
-                      />
-                    ) : (
-                      <div className="w-20 h-20 rounded-full border-4 border-white bg-gradient-to-br from-[#67cffe]/20 to-[#304d5d]/10 mb-4 flex items-center justify-center shadow-lg">
-                        <span className="text-2xl font-bold text-[#304d5d]">
-                          {doctor.name?.charAt(0).toUpperCase()}
-                        </span>
+                  <div className="p-5">
+                    {/* Doctor Avatar with name */}
+                    <div className="flex items-start gap-4 mb-4">
+                      {doctor.img && getFullImageURL(doctor.img) ? (
+                        <img
+                          src={getFullImageURL(doctor.img)}
+                          alt={doctor.name}
+                          className="w-14 h-14 rounded-full border-2 border-[#67cffe]/30 object-cover shadow-md flex-shrink-0"
+                        />
+                      ) : (
+                        <div className="w-14 h-14 rounded-full border-2 border-[#67cffe]/30 bg-gradient-to-br from-[#67cffe]/20 to-[#304d5d]/10 flex items-center justify-center shadow-md flex-shrink-0">
+                          <span className="text-lg font-bold text-[#304d5d]">
+                            {doctor.name?.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-base font-bold text-[#304d5d] truncate group-hover:text-[#67cffe] transition-colors">
+                          Dr. {doctor.name || "N/A"}
+                        </h3>
+                        {doctor.specialization && (
+                          <p className="text-xs text-[#67cffe] font-semibold mt-0.5">
+                            {doctor.specialization}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Doctor Type Tags */}
+                    {doctor.doctorType && (
+                      <div className="mb-3 flex flex-wrap gap-1">
+                        {Array.isArray(doctor.doctorType) ? (
+                          doctor.doctorType.slice(0, 2).map((type, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-0.5 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-2 py-0.5 rounded-full text-xs font-semibold"
+                            >
+                              <Award size={10} />
+                              {type}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="inline-flex items-center gap-0.5 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-2 py-0.5 rounded-full text-xs font-semibold">
+                            <Award size={10} />
+                            {doctor.doctorType}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {/* Doctor Info */}
-                    <h3 className="text-xl font-bold text-[#304d5d] mb-3">
-                      {doctor.name || "N/A"}
-                    </h3>
+                    {/* Quick Info Grid */}
+                    <div className="space-y-2 mb-4 text-sm">
+                      {doctor.yearsOfExperience && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <span className="text-[#67cffe] font-bold">
+                            {doctor.yearsOfExperience}y
+                          </span>
+                          <span className="text-gray-500 text-xs">
+                            Experience
+                          </span>
+                        </div>
+                      )}
 
-                    {doctor.doctorType && (
-                      <div className="mb-3">
-                        <div className="flex flex-wrap gap-2">
-                          {Array.isArray(doctor.doctorType) ? (
-                            doctor.doctorType.map((type, idx) => (
+                      {doctor.location && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <MapPin
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600 truncate">
+                            {doctor.location}
+                          </p>
+                        </div>
+                      )}
+
+                      {doctor.email && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Mail
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600 truncate">
+                            {doctor.email}
+                          </p>
+                        </div>
+                      )}
+
+                      {doctor.phone && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Phone
+                            size={14}
+                            className="text-[#67cffe] flex-shrink-0"
+                          />
+                          <p className="text-xs text-gray-600">
+                            {doctor.phone}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Degree Badge */}
+                    {doctor.degree && (
+                      <div className="mb-4">
+                        <p className="text-xs text-gray-500 font-semibold mb-1">
+                          Qualifications
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {Array.isArray(doctor.degree) ? (
+                            doctor.degree.slice(0, 2).map((deg, idx) => (
                               <span
                                 key={idx}
-                                className="inline-flex items-center gap-1 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-3 py-1 rounded-full text-xs font-semibold"
+                                className="bg-[#304d5d]/10 text-[#304d5d] px-2 py-0.5 rounded text-xs font-medium"
                               >
-                                <Award size={12} />
-                                {type}
+                                {deg}
                               </span>
                             ))
                           ) : (
-                            <span className="inline-flex items-center gap-1 bg-[#67cffe]/10 text-[#304d5d] border border-[#67cffe]/30 px-3 py-1 rounded-full text-xs font-semibold">
-                              <Award size={12} />
-                              {doctor.doctorType}
+                            <span className="bg-[#304d5d]/10 text-[#304d5d] px-2 py-0.5 rounded text-xs font-medium">
+                              {doctor.degree}
                             </span>
                           )}
                         </div>
                       </div>
                     )}
 
-                    {doctor.specialization && (
-                      <div className="text-gray-700 mb-3">
-                        <p className="text-xs text-gray-600 font-semibold">
-                          Specialization:
-                        </p>
-                        <p className="text-sm font-bold text-[#67cffe]">
-                          {doctor.specialization}
-                        </p>
-                      </div>
-                    )}
-
-                    {doctor.chambers && doctor.chambers.length > 0 && (
-                      <div className="mb-3">
-                        <p className="text-xs text-gray-600 mb-1 font-semibold flex items-center gap-1">
-                          <MapPin size={12} />
-                          Chamber Locations:
-                        </p>
-                        <div className="space-y-1">
-                          {doctor.chambers.slice(0, 2).map((chamber, idx) => (
-                            <div
-                              key={idx}
-                              className="text-xs text-gray-700 bg-gray-50 p-2 rounded"
-                            >
-                              <p className="font-semibold">{chamber.name}</p>
-                              <p className="text-gray-600">{chamber.address}</p>
-                            </div>
-                          ))}
-                          {doctor.chambers.length > 2 && (
-                            <p className="text-xs text-[#67cffe] font-semibold">
-                              +{doctor.chambers.length - 2} more
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {doctor.email && (
-                      <div className="flex items-center text-gray-700 mb-2">
-                        <Mail size={16} className="mr-2 text-[#67cffe]" />
-                        <p className="text-sm break-all">{doctor.email}</p>
-                      </div>
-                    )}
-
-                    {doctor.phone && (
-                      <div className="flex items-center text-gray-700 mb-2">
-                        <Phone size={16} className="mr-2 text-[#67cffe]" />
-                        <p className="text-sm">{doctor.phone}</p>
-                      </div>
-                    )}
-
-                    {/* Action Button */}
-                    <div className="grid grid-cols-2 gap-2 mt-3">
+                    {/* Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2 pt-3 border-t border-gray-200">
                       <button
                         onClick={() =>
                           navigate(`/doctor-profile/${doctor._id}`, {
                             state: { doctor },
                           })
                         }
-                        className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                        className="px-3 py-2 bg-white border border-[#67cffe] text-[#67cffe] hover:bg-[#67cffe]/10 font-semibold text-sm rounded-lg transition-all duration-200 group-hover:border-[#67cffe] group-hover:shadow-md"
                       >
                         Profile
                       </button>
                       <button
                         onClick={() => handleAppointmentClick(doctor)}
-                        className="bg-gradient-to-r from-[#67cffe] to-[#304d5d] hover:shadow-lg hover:shadow-[#304d5d]/30 text-white font-bold py-2 rounded-lg transition-all duration-300 hover:-translate-y-0.5 text-sm"
+                        className="px-3 py-2 bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-semibold text-sm rounded-lg transition-all duration-200 hover:-translate-y-0.5"
                       >
-                        Appointment
+                        Book
                       </button>
                     </div>
                   </div>

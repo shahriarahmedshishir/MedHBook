@@ -217,17 +217,6 @@ const Header = () => {
               <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
             </Link>
             <Link
-              to="/blogs"
-              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
-            >
-              <BookOpen
-                size={18}
-                className="group-hover:scale-110 transition-transform duration-300"
-              />
-              Blogs
-              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
-            </Link>
-            <Link
               to="/search-doctor"
               className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
             >
@@ -277,6 +266,19 @@ const Header = () => {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
               </Link>
             )}
+            {/* Blogs - Visible to everyone */}
+            <Link
+              to="/blogs"
+              className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
+            >
+              <BookOpen
+                size={18}
+                className="group-hover:scale-110 transition-transform duration-300"
+              />
+              Blogs
+              <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
+            </Link>
+
             {/* About Us - Only visible to doctors and admins */}
             {(user?.role === "doctor" || user?.role === "admin" || isAdmin) && (
               <Link
@@ -564,17 +566,6 @@ const Header = () => {
                 </Link>
               )}
               <Link
-                to="/blogs"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
-              >
-                <BookOpen
-                  size={16}
-                  className="group-hover:scale-110 transition-transform duration-300"
-                />
-                Blogs
-              </Link>
-              <Link
                 to="/search-doctor"
                 onClick={() => setMobileMenuOpen(false)}
                 className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
@@ -595,6 +586,17 @@ const Header = () => {
                   className="group-hover:scale-110 transition-transform duration-300"
                 />
                 Chat
+              </Link>
+              <Link
+                to="/blogs"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center gap-2 text-sm font-medium text-[#304d5d] px-4 py-2.5 hover:bg-[#67cffe]/10 transition-all duration-300 rounded-lg group"
+              >
+                <BookOpen
+                  size={16}
+                  className="group-hover:scale-110 transition-transform duration-300"
+                />
+                Blogs
               </Link>
               {/* About Us - Only visible to doctors and admins */}
               {(user.role === "doctor" || user.role === "admin" || isAdmin) && (

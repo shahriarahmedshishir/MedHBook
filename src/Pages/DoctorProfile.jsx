@@ -196,7 +196,7 @@ const DoctorProfile = () => {
                       className="text-gray-600 mt-1 flex-shrink-0"
                     />
                     <div>
-                      <p className="text-gray-600 font-medium mb-1">About</p>
+                      <p className="text-gray-600 font-medium mb-1">Overview</p>
                       <p className="text-gray-800">{doctor.bio}</p>
                     </div>
                   </div>

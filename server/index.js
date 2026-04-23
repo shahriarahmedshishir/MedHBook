@@ -974,6 +974,57 @@ app.get("/admin/statistics", verifyJWT, async (req, res) => {
   }
 });
 
+// Get doctor activities (completed, upcoming, cancelled appointments count for each doctor)
+app.get(
+  "/admin/doctor-activities",
+  verifyJWT,
+  verifyAdmin,
+  async (req, res) => {
+    try {
+      const appointments = await appointmentCollection.find({}).toArray();
+
+      // Group appointments by doctor and calculate counts
+      const doctorActivityMap = {};
+
+      appointments.forEach((appt) => {
+        const doctorEmail = appt.doctorEmail;
+        const doctorName = appt.doctorName || "Unknown Doctor";
+
+        if (!doctorActivityMap[doctorEmail]) {
+          doctorActivityMap[doctorEmail] = {
+            doctorEmail,
+            doctorName,
+            completedCount: 0,
+            upcomingCount: 0,
+            cancelledCount: 0,
+          };
+        }
+
+        const status = appt.status?.toLowerCase();
+        if (status === "completed") {
+          doctorActivityMap[doctorEmail].completedCount++;
+        } else if (status === "approved" || status === "pending") {
+          doctorActivityMap[doctorEmail].upcomingCount++;
+        } else if (status === "cancelled") {
+          doctorActivityMap[doctorEmail].cancelledCount++;
+        }
+      });
+
+      // Convert map to array and sort by total appointments
+      const activities = Object.values(doctorActivityMap).sort((a, b) => {
+        const aTotal = a.completedCount + a.upcomingCount + a.cancelledCount;
+        const bTotal = b.completedCount + b.upcomingCount + b.cancelledCount;
+        return bTotal - aTotal;
+      });
+
+      res.json(activities);
+    } catch (err) {
+      console.error("Error fetching doctor activities:", err);
+      res.status(500).json({ error: err.message });
+    }
+  },
+);
+
 // Search accounts by email/name/uid and role (admin only)
 app.get("/admin/accounts", verifyJWT, verifyAdmin, async (req, res) => {
   try {
@@ -1417,6 +1468,9 @@ app.get("/digital-prescriptions", verifyJWT, async (req, res) => {
 app.get("/digital-prescriptions/:id", verifyJWT, async (req, res) => {
   try {
     const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid prescription ID" });
+    }
     const prescription = await digitalPrescriptionCollection.findOne({
       _id: new ObjectId(id),
     });

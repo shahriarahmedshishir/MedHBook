@@ -2,6 +2,7 @@ import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import AuthContext from "../Components/Context/AuthContext";
 import { authDelete, authFetch, authGet } from "../utils/api";
+import { TrendingUp, CheckCircle, XCircle, Clock } from "lucide-react";
 
 const AdminDashboard = () => {
   const { user } = useContext(AuthContext);
@@ -17,10 +18,13 @@ const AdminDashboard = () => {
   const [accounts, setAccounts] = useState([]);
   const [loadingAccounts, setLoadingAccounts] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState(null);
+  const [doctorActivities, setDoctorActivities] = useState([]);
+  const [loadingActivities, setLoadingActivities] = useState(true);
 
   useEffect(() => {
     fetchStatistics();
     fetchAccounts();
+    fetchDoctorActivities();
   }, []);
 
   const fetchStatistics = async () => {
@@ -53,6 +57,20 @@ const AdminDashboard = () => {
       setAccounts([]);
     } finally {
       setLoadingAccounts(false);
+    }
+  };
+
+  const fetchDoctorActivities = async () => {
+    try {
+      setLoadingActivities(true);
+      const response = await authGet("/admin/doctor-activities");
+      const data = await response.json();
+      setDoctorActivities(Array.isArray(data) ? data.slice(0, 10) : []);
+    } catch (error) {
+      console.error("Error fetching doctor activities:", error);
+      setDoctorActivities([]);
+    } finally {
+      setLoadingActivities(false);
     }
   };
 
@@ -113,40 +131,46 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff] p-6">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-          <p className="text-gray-600 mt-2">
+        {/* Header */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 mb-6 border border-white/20">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-[#304d5d] to-[#67cffe] bg-clip-text text-transparent">
+            Admin Dashboard
+          </h1>
+          <p className="text-[#304d5d] mt-2 font-medium">
             Welcome back, {user?.name || user?.email}
           </p>
         </div>
 
+        {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-700">Total Users</h3>
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 border border-white/20 hover:shadow-lg transition-all">
+            <h3 className="text-lg font-semibold text-[#304d5d]">
+              Total Users
+            </h3>
             <p className="text-3xl font-bold text-blue-600 mt-2">
               {loading ? "..." : stats.totalUsers}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-700">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 border border-white/20 hover:shadow-lg transition-all">
+            <h3 className="text-lg font-semibold text-[#304d5d]">
               Total Doctors
             </h3>
             <p className="text-3xl font-bold text-green-600 mt-2">
               {loading ? "..." : stats.totalDoctors}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-700">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 border border-white/20 hover:shadow-lg transition-all">
+            <h3 className="text-lg font-semibold text-[#304d5d]">
               Pending Applications
             </h3>
             <p className="text-3xl font-bold text-orange-600 mt-2">
               {loading ? "..." : stats.pendingApplications}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-700">
+          <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 border border-white/20 hover:shadow-lg transition-all">
+            <h3 className="text-lg font-semibold text-[#304d5d]">
               Total Admins
             </h3>
             <p className="text-3xl font-bold text-purple-600 mt-2">
@@ -155,34 +179,111 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
+        {/* Recent Doctor Activity Section */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 mb-6 border border-white/20">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp size={24} className="text-[#67cffe]" />
+            <h2 className="text-xl font-bold text-[#304d5d]">
+              Recent Doctor Activity
+            </h2>
+          </div>
+
+          {loadingActivities ? (
+            <p className="text-[#304d5d] font-medium">Loading activities...</p>
+          ) : doctorActivities.length === 0 ? (
+            <p className="text-gray-500">No doctor activities yet</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gradient-to-r from-[#304d5d]/10 to-[#67cffe]/10 border-b-2 border-[#67cffe]/20">
+                  <tr>
+                    <th className="text-left p-3 font-bold text-[#304d5d]">
+                      Doctor Name
+                    </th>
+                    <th className="text-center p-3 font-bold text-[#304d5d]">
+                      Completed
+                    </th>
+                    <th className="text-center p-3 font-bold text-[#304d5d]">
+                      Upcoming
+                    </th>
+                    <th className="text-center p-3 font-bold text-[#304d5d]">
+                      Cancelled
+                    </th>
+                    <th className="text-center p-3 font-bold text-[#304d5d]">
+                      Total
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {doctorActivities.map((activity, index) => (
+                    <tr
+                      key={index}
+                      className="border-b border-gray-200 hover:bg-[#67cffe]/5 transition-colors"
+                    >
+                      <td className="p-3 font-medium text-[#304d5d]">
+                        {activity.doctorName || "Unknown"}
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center gap-1 bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold">
+                          <CheckCircle size={14} />
+                          {activity.completedCount || 0}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-xs font-bold">
+                          <Clock size={14} />
+                          {activity.upcomingCount || 0}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="inline-flex items-center gap-1 bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">
+                          <XCircle size={14} />
+                          {activity.cancelledCount || 0}
+                        </span>
+                      </td>
+                      <td className="p-3 text-center font-bold text-[#67cffe]">
+                        {(activity.completedCount || 0) +
+                          (activity.upcomingCount || 0) +
+                          (activity.cancelledCount || 0)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Actions */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 mb-6 border border-white/20">
+          <h2 className="text-xl font-bold text-[#304d5d] mb-4">
             Quick Actions
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <button
               onClick={() => handleQuickRoleFilter("user")}
-              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg transition"
+              className="bg-gradient-to-r from-blue-500 to-blue-600 hover:shadow-lg hover:shadow-blue-200 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300"
             >
               Manage Users
             </button>
             <button
               onClick={() => handleQuickRoleFilter("doctor")}
-              className="bg-green-500 hover:bg-green-600 text-white font-semibold py-3 px-6 rounded-lg transition"
+              className="bg-gradient-to-r from-green-500 to-green-600 hover:shadow-lg hover:shadow-green-200 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300"
             >
               Manage Doctors
             </button>
             <Link
               to="/admin/doctor-applications"
-              className="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 px-6 rounded-lg transition text-center"
+              className="bg-gradient-to-r from-orange-500 to-orange-600 hover:shadow-lg hover:shadow-orange-200 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 text-center"
             >
               View Doctor Applications
             </Link>
           </div>
         </div>
 
-        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-          <h2 className="text-xl font-bold text-gray-800 mb-4">
+        {/* Account Management */}
+        <div className="bg-white/90 backdrop-blur-sm rounded-lg shadow-md p-6 border border-white/20">
+          <h2 className="text-xl font-bold text-[#304d5d] mb-4">
             Account Management
           </h2>
 
@@ -195,11 +296,11 @@ const AdminDashboard = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by name, email, or UID"
-              className="md:col-span-3 px-4 py-2 border rounded-lg"
+              className="md:col-span-3 px-4 py-2 border-2 border-[#67cffe]/30 rounded-lg focus:outline-none focus:border-[#67cffe] transition-all"
             />
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-lg"
+              className="bg-gradient-to-r from-[#304d5d] to-[#67cffe] hover:shadow-lg hover:shadow-[#67cffe]/30 text-white font-semibold py-2 px-4 rounded-lg transition-all disabled:opacity-50"
               disabled={loadingAccounts}
             >
               {loadingAccounts ? "Searching..." : "Search"}
@@ -207,7 +308,7 @@ const AdminDashboard = () => {
           </form>
 
           {loadingAccounts ? (
-            <p className="text-gray-500">Loading accounts...</p>
+            <p className="text-[#304d5d] font-medium">Loading accounts...</p>
           ) : accounts.length === 0 ? (
             <p className="text-gray-500">No accounts found for this search.</p>
           ) : (
@@ -218,10 +319,10 @@ const AdminDashboard = () => {
                   return (
                     <div
                       key={account._id}
-                      className="border rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3"
+                      className="border-2 border-[#67cffe]/20 rounded-lg p-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3 hover:border-[#67cffe]/50 transition-all"
                     >
                       <div>
-                        <p className="font-semibold text-gray-900">
+                        <p className="font-semibold text-[#304d5d]">
                           {account.name || "Unnamed"}
                         </p>
                         <p className="text-sm text-gray-600">{account.email}</p>
@@ -245,7 +346,7 @@ const AdminDashboard = () => {
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleToggleBlock(account)}
-                          className={`px-4 py-2 rounded-lg text-white font-semibold ${
+                          className={`px-4 py-2 rounded-lg text-white font-semibold transition-all ${
                             account.blocked
                               ? "bg-emerald-600 hover:bg-emerald-700"
                               : "bg-amber-500 hover:bg-amber-600"
@@ -262,7 +363,7 @@ const AdminDashboard = () => {
                           type="button"
                           disabled={isBusy}
                           onClick={() => handleDeleteAccount(account)}
-                          className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-60"
+                          className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold disabled:opacity-60 transition-all"
                         >
                           {isBusy ? "Deleting..." : "Delete"}
                         </button>
