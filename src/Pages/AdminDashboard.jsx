@@ -193,7 +193,7 @@ const AdminDashboard = () => {
           ) : doctorActivities.length === 0 ? (
             <p className="text-gray-500">No doctor activities yet</p>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="h-[50vh] overflow-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gradient-to-r from-[#304d5d]/10 to-[#67cffe]/10 border-b-2 border-[#67cffe]/20">
                   <tr>

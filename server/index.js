@@ -59,7 +59,7 @@ const verifyAdmin = async (req, res, next) => {
     }
 
     next();
-  } catch (err) {
+  } catch {
     return res.status(500).json({ error: "Admin authorization failed" });
   }
 };
@@ -72,6 +72,84 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${port}`;
 
 // ===== UTILITY FUNCTIONS =====
 const MIN_APPOINTMENT_GAP_MINUTES = 5;
+const WEEKDAY_SHORT_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+const parseTimeToMinutes = (timeStr) => {
+  if (typeof timeStr !== "string") return NaN;
+
+  const trimmedTime = timeStr.trim();
+  const match = trimmedTime.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return NaN;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+
+  if (
+    Number.isNaN(hours) ||
+    Number.isNaN(minutes) ||
+    hours < 0 ||
+    hours > 23 ||
+    minutes < 0 ||
+    minutes > 59
+  ) {
+    return NaN;
+  }
+
+  return hours * 60 + minutes;
+};
+
+const isMinutesInsideRange = (targetMinutes, startMinutes, endMinutes) => {
+  if (
+    Number.isNaN(targetMinutes) ||
+    Number.isNaN(startMinutes) ||
+    Number.isNaN(endMinutes)
+  ) {
+    return false;
+  }
+
+  // Supports normal ranges and overnight ranges.
+  if (startMinutes <= endMinutes) {
+    return targetMinutes >= startMinutes && targetMinutes <= endMinutes;
+  }
+
+  return targetMinutes >= startMinutes || targetMinutes <= endMinutes;
+};
+
+const normalizeWorkingDay = (dayValue) => {
+  if (typeof dayValue !== "string") return null;
+
+  const normalized = dayValue.trim().toLowerCase();
+  const dayMap = {
+    sun: "Sun",
+    sunday: "Sun",
+    mon: "Mon",
+    monday: "Mon",
+    tue: "Tue",
+    tues: "Tue",
+    tuesday: "Tue",
+    wed: "Wed",
+    wednesday: "Wed",
+    thu: "Thu",
+    thur: "Thu",
+    thurs: "Thu",
+    thursday: "Thu",
+    fri: "Fri",
+    friday: "Fri",
+    sat: "Sat",
+    saturday: "Sat",
+  };
+
+  return dayMap[normalized] || null;
+};
+
+const getWeekdayForDate = (dateStr) => {
+  if (typeof dateStr !== "string") return null;
+
+  const date = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+
+  return WEEKDAY_SHORT_NAMES[date.getDay()] || null;
+};
 
 // Generate 6-digit secret code
 const generateSecretCode = () => {
@@ -212,13 +290,77 @@ app.post("/appointments", verifyJWT, async (req, res) => {
         .json({ message: "Missing required fields (need date and time)" });
     }
 
-    // Parse appointment time (format: "HH:MM")
-    const parseTime = (timeStr) => {
-      let [hours, minutes] = timeStr.split(":").map(Number);
-      return hours * 60 + minutes; // Convert to minutes for easier comparison
-    };
+    const appointmentTimeInMinutes = parseTimeToMinutes(appointmentTime);
+    if (Number.isNaN(appointmentTimeInMinutes)) {
+      return res
+        .status(400)
+        .json({ message: "Invalid appointment time format. Use HH:MM." });
+    }
 
-    const appointmentTimeInMinutes = parseTime(appointmentTime);
+    const doctor = await doctorCollection.findOne(
+      { email: doctorEmail },
+      { projection: { name: 1, chambers: 1 } },
+    );
+
+    if (!doctor) {
+      return res.status(404).json({ message: "Doctor not found." });
+    }
+
+    const selectedChamberName = String(chamber).trim();
+    const chamberObj = Array.isArray(doctor.chambers)
+      ? doctor.chambers.find(
+          (c) =>
+            typeof c?.name === "string" &&
+            c.name.trim().toLowerCase() === selectedChamberName.toLowerCase(),
+        )
+      : null;
+
+    if (!chamberObj) {
+      return res.status(400).json({ message: "Selected chamber not found." });
+    }
+
+    const chamberStartMinutes = parseTimeToMinutes(chamberObj.startTime);
+    const chamberEndMinutes = parseTimeToMinutes(chamberObj.endTime);
+
+    if (Number.isNaN(chamberStartMinutes) || Number.isNaN(chamberEndMinutes)) {
+      return res.status(400).json({
+        message:
+          "This chamber schedule is incomplete. Please contact the doctor.",
+      });
+    }
+
+    if (
+      !isMinutesInsideRange(
+        appointmentTimeInMinutes,
+        chamberStartMinutes,
+        chamberEndMinutes,
+      )
+    ) {
+      return res.status(400).json({
+        message: `Appointment must be within chamber hours (${chamberObj.startTime} - ${chamberObj.endTime}).`,
+      });
+    }
+
+    if (
+      Array.isArray(chamberObj.workingDays) &&
+      chamberObj.workingDays.length > 0
+    ) {
+      const requestedWeekday = getWeekdayForDate(appointmentDate);
+
+      if (!requestedWeekday) {
+        return res.status(400).json({ message: "Invalid appointment date." });
+      }
+
+      const allowedDays = chamberObj.workingDays
+        .map(normalizeWorkingDay)
+        .filter(Boolean);
+
+      if (allowedDays.length > 0 && !allowedDays.includes(requestedWeekday)) {
+        return res.status(400).json({
+          message: `This chamber is closed on ${requestedWeekday}. Available days: ${allowedDays.join(", ")}.`,
+        });
+      }
+    }
 
     // Enforce a minimum gap between appointments on the same date/chamber.
     const conflictingAppointment = await appointmentCollection.findOne({
@@ -269,11 +411,14 @@ app.post("/appointments", verifyJWT, async (req, res) => {
 
     const appointment = {
       doctorEmail,
-      doctorName,
+      doctorName: doctorName || doctor.name,
       doctorSpecialty,
-      chamber,
-      chamberAddress,
-      chamberTime,
+      chamber: selectedChamberName,
+      chamberAddress: chamberObj.address || chamberAddress || "",
+      chamberTime:
+        chamberObj.startTime && chamberObj.endTime
+          ? `${chamberObj.startTime} - ${chamberObj.endTime}`
+          : chamberTime || "",
       patientEmail,
       patientName,
       appointmentDate,

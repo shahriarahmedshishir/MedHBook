@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 
 const DoctorAppointments = () => {
-  const { user, loading: userLoading } = useContext(AuthContext);
+  const { user, loading: userLoading, isAdmin } = useContext(AuthContext);
 
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -142,6 +142,21 @@ const DoctorAppointments = () => {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <span>Loading...</span>
+      </div>
+    );
+  }
+
+  if (user.role !== "doctor" || isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#e0f7fa] via-[#b2ebf2] to-[#d1f6ff]">
+        <div className="bg-white/90 rounded-xl shadow-lg p-8 text-center max-w-md mx-4">
+          <h2 className="text-2xl font-bold text-[#304d5d] mb-2">
+            Access Restricted
+          </h2>
+          <p className="text-gray-600">
+            This appointments feature is available for doctor accounts only.
+          </p>
+        </div>
       </div>
     );
   }

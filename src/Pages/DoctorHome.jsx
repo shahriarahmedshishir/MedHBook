@@ -120,22 +120,6 @@ const DoctorHome = () => {
       ></div>
 
       <div className="max-w-6xl mx-auto flex flex-col gap-6 relative z-10">
-        <div className="flex flex-col items-center justify-center px-4 h-[calc(35vh)] animate-fadeIn">
-          <h1
-            className="text-2xl md:text-4xl font-extrabold bg-clip-text text-transparent 
-               bg-gradient-to-r from-[#304d5d] via-[#67cffe] to-[#304d5d]
-               overflow-hidden
-               whitespace-nowrap md:whitespace-normal
-               mx-auto text-center
-               max-w-[90vw] md:max-w-3xl"
-          >
-            MedHBook — a smart digital system to store, access, and share
-            medical records securely in one place.
-          </h1>
-          <p className="mt-4 text-base md:text-lg font-bold tracking-wide text-[#304d5d] text-center typewriter">
-            Your Health. Your Records. One Book.
-          </p>
-        </div>
         {/* Doctor Card */}
         {user && (
           <div className="flex justify-center mt-6 md:mt-10 px-4 animate-scaleIn">

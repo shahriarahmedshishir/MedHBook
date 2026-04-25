@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useContext, useEffect, useState } from "react";
 import axios from "axios";
 import { Search, MapPin, Mail, Phone, Award } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import AuthContext from "../Components/Context/AuthContext";
 
 const getFullImageURL = (imgPath) => {
   if (!imgPath) return null;
@@ -565,6 +566,16 @@ const SearchDoctor = () => {
   const [error, setError] = useState("");
   const [searched, setSearched] = useState(false);
   const navigate = useNavigate();
+  const { user } = useContext(AuthContext);
+
+  const removeLoggedInDoctor = (doctorList = []) => {
+    if (user?.role !== "doctor" || !user?.email) return doctorList;
+
+    const loggedInDoctorEmail = user.email.toLowerCase();
+    return doctorList.filter(
+      (doctor) => doctor?.email?.toLowerCase() !== loggedInDoctorEmail,
+    );
+  };
 
   // Fetch initial 10 doctors on component mount
   useEffect(() => {
@@ -576,13 +587,14 @@ const SearchDoctor = () => {
             params: { limit: 10 },
           },
         );
-        setDoctors(response.data.slice(0, 10));
+        const filteredDoctors = removeLoggedInDoctor(response.data);
+        setDoctors(filteredDoctors.slice(0, 10));
       } catch (err) {
         console.error("Error fetching initial doctors:", err);
       }
     };
     fetchInitialDoctors();
-  }, []);
+  }, [user?.email, user?.role]);
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -615,7 +627,7 @@ const SearchDoctor = () => {
         params,
       });
 
-      setDoctors(response.data);
+      setDoctors(removeLoggedInDoctor(response.data));
       setSearched(true);
 
       if (response.data.length === 0) {

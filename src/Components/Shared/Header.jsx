@@ -252,8 +252,8 @@ const Header = () => {
                 <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-[#67cffe] group-hover:w-full transition-all duration-300"></span>
               </Link>
             )}
-            {/* Doctor Appointments - Only visible to doctors */}
-            {(user?.role === "doctor" || isAdmin) && (
+            {/* Doctor Appointments - Only visible to doctors (not admins) */}
+            {user?.role === "doctor" && !isAdmin && (
               <Link
                 to="/doctor/appointments"
                 className="flex items-center gap-2 text-sm font-semibold text-[#304d5d] hover:text-[#67cffe] transition-all duration-300 hover:-translate-y-0.5 relative group"
@@ -551,8 +551,8 @@ const Header = () => {
                   My Appointments
                 </Link>
               )}
-              {/* Doctor Appointments - Only visible to doctors (mobile) */}
-              {(user.role === "doctor" || isAdmin) && (
+              {/* Doctor Appointments - Only visible to doctors (mobile, not admins) */}
+              {user.role === "doctor" && !isAdmin && (
                 <Link
                   to="/doctor/appointments"
                   onClick={() => setMobileMenuOpen(false)}

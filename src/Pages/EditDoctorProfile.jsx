@@ -4,6 +4,50 @@ import AuthContext from "../Components/Context/AuthContext";
 import ChamberManagement from "../Components/Shared/ChamberManagement";
 import { authGet, authPost, authPut } from "../utils/api";
 
+const OTHER_OPTION = "Other";
+const DOCTOR_TYPE_OPTIONS = [
+  "General Practitioner",
+  "Cardiologist",
+  "Dermatologist",
+  "Neurologist",
+  "Orthopedist",
+  "Pediatrician",
+  "Psychiatrist",
+  "Surgeon",
+  "Dentist",
+  "Ophthalmologist",
+  "ENT Specialist",
+  OTHER_OPTION,
+];
+const DEGREE_OPTIONS = [
+  "MBBS (Bachelor of Medicine)",
+  "MD (Doctor of Medicine)",
+  "DO (Doctor of Osteopathy)",
+  "BDS (Bachelor of Dental Surgery)",
+  "DDS (Doctor of Dental Surgery)",
+  "BDSc (Bachelor of Dental Science)",
+  "MS (Master of Surgery)",
+  "DNB (Diplomate of National Board)",
+  "PhD (Doctor of Philosophy)",
+  OTHER_OPTION,
+];
+
+const toArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string" && value.trim()) return [value.trim()];
+  return [];
+};
+
+const getCustomValues = (values, predefinedOptions) => {
+  return toArray(values).filter(
+    (item) => item !== OTHER_OPTION && !predefinedOptions.includes(item),
+  );
+};
+
+const sanitizeSelection = (values) => {
+  return toArray(values).filter((item) => item && item !== OTHER_OPTION);
+};
+
 const EditDoctorProfile = () => {
   const { user, refreshUser } = useContext(AuthContext);
 
@@ -31,6 +75,8 @@ const EditDoctorProfile = () => {
   const [imagePreview, setImagePreview] = useState(null);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState({ type: null, message: "" }); // 'success', 'error', 'loading'
+  const [customDoctorTypeInput, setCustomDoctorTypeInput] = useState("");
+  const [customDegreeInput, setCustomDegreeInput] = useState("");
 
   useEffect(() => {
     if (!user?.email) return;
@@ -55,8 +101,8 @@ const EditDoctorProfile = () => {
           yearsOfExperience: doctorData.yearsOfExperience || "",
           education: doctorData.education || "",
           college: doctorData.college || "",
-          degree: doctorData.degree || "",
-          doctorType: doctorData.doctorType || "",
+          degree: toArray(doctorData.degree),
+          doctorType: toArray(doctorData.doctorType),
           certifications: doctorData.certifications || [],
           bio: doctorData.bio || "",
           chambers: doctorData.chambers || [], // Load chambers
@@ -159,6 +205,60 @@ const EditDoctorProfile = () => {
     });
   };
 
+  const addCustomDoctorType = () => {
+    const inputValue = customDoctorTypeInput.trim();
+    if (!inputValue) return;
+
+    setFormData((p) => {
+      const types = toArray(p.doctorType);
+      const exists = types.some(
+        (t) => t.toLowerCase() === inputValue.toLowerCase(),
+      );
+
+      if (exists) return p;
+      return {
+        ...p,
+        doctorType: [...types, inputValue],
+      };
+    });
+
+    setCustomDoctorTypeInput("");
+  };
+
+  const addCustomDegree = () => {
+    const inputValue = customDegreeInput.trim();
+    if (!inputValue) return;
+
+    setFormData((p) => {
+      const degrees = toArray(p.degree);
+      const exists = degrees.some(
+        (d) => d.toLowerCase() === inputValue.toLowerCase(),
+      );
+
+      if (exists) return p;
+      return {
+        ...p,
+        degree: [...degrees, inputValue],
+      };
+    });
+
+    setCustomDegreeInput("");
+  };
+
+  const removeCustomDoctorType = (typeToRemove) => {
+    setFormData((p) => ({
+      ...p,
+      doctorType: toArray(p.doctorType).filter((t) => t !== typeToRemove),
+    }));
+  };
+
+  const removeCustomDegree = (degreeToRemove) => {
+    setFormData((p) => ({
+      ...p,
+      degree: toArray(p.degree).filter((d) => d !== degreeToRemove),
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -226,12 +326,8 @@ const EditDoctorProfile = () => {
         yearsOfExperience: formData.yearsOfExperience,
         education: formData.education,
         college: formData.college,
-        degree: formData.degree,
-        doctorType: Array.isArray(formData.doctorType)
-          ? formData.doctorType
-          : formData.doctorType
-            ? [formData.doctorType]
-            : [],
+        degree: sanitizeSelection(formData.degree),
+        doctorType: sanitizeSelection(formData.doctorType),
         certifications: Array.isArray(formData.certifications)
           ? formData.certifications
           : [],
@@ -478,20 +574,7 @@ const EditDoctorProfile = () => {
               Types of Doctor (Select All That Apply)
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                "General Practitioner",
-                "Cardiologist",
-                "Dermatologist",
-                "Neurologist",
-                "Orthopedist",
-                "Pediatrician",
-                "Psychiatrist",
-                "Surgeon",
-                "Dentist",
-                "Ophthalmologist",
-                "ENT Specialist",
-                "Other",
-              ].map((type) => (
+              {DOCTOR_TYPE_OPTIONS.map((type) => (
                 <label key={type} className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
@@ -507,6 +590,50 @@ const EditDoctorProfile = () => {
                 </label>
               ))}
             </div>
+
+            {Array.isArray(formData.doctorType) &&
+              formData.doctorType.includes(OTHER_OPTION) && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={customDoctorTypeInput}
+                    onChange={(e) => setCustomDoctorTypeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomDoctorType();
+                      }
+                    }}
+                    placeholder="Add custom doctor type"
+                    className="flex-1 border p-2 rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomDoctorType}
+                    className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
+            {getCustomValues(formData.doctorType, DOCTOR_TYPE_OPTIONS).length >
+              0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {getCustomValues(formData.doctorType, DOCTOR_TYPE_OPTIONS).map(
+                  (item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => removeCustomDoctorType(item)}
+                      className="text-sm px-3 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full"
+                    >
+                      {item} ×
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="block mb-1 font-medium">
@@ -526,18 +653,7 @@ const EditDoctorProfile = () => {
               Degree (Select All That Apply)
             </label>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {[
-                "MBBS (Bachelor of Medicine)",
-                "MD (Doctor of Medicine)",
-                "DO (Doctor of Osteopathy)",
-                "BDS (Bachelor of Dental Surgery)",
-                "DDS (Doctor of Dental Surgery)",
-                "BDSc (Bachelor of Dental Science)",
-                "MS (Master of Surgery)",
-                "DNB (Diplomate of National Board)",
-                "PhD (Doctor of Philosophy)",
-                "Other",
-              ].map((degree) => (
+              {DEGREE_OPTIONS.map((degree) => (
                 <label
                   key={degree}
                   className="flex items-center cursor-pointer"
@@ -556,6 +672,49 @@ const EditDoctorProfile = () => {
                 </label>
               ))}
             </div>
+
+            {Array.isArray(formData.degree) &&
+              formData.degree.includes(OTHER_OPTION) && (
+                <div className="mt-3 flex gap-2">
+                  <input
+                    type="text"
+                    value={customDegreeInput}
+                    onChange={(e) => setCustomDegreeInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addCustomDegree();
+                      }
+                    }}
+                    placeholder="Add custom degree"
+                    className="flex-1 border p-2 rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomDegree}
+                    className="px-4 py-2 bg-teal-500 text-white rounded-lg hover:bg-teal-600"
+                  >
+                    Add
+                  </button>
+                </div>
+              )}
+
+            {getCustomValues(formData.degree, DEGREE_OPTIONS).length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {getCustomValues(formData.degree, DEGREE_OPTIONS).map(
+                  (item) => (
+                    <button
+                      key={item}
+                      type="button"
+                      onClick={() => removeCustomDegree(item)}
+                      className="text-sm px-3 py-1 bg-teal-50 text-teal-700 border border-teal-200 rounded-full"
+                    >
+                      {item} ×
+                    </button>
+                  ),
+                )}
+              </div>
+            )}
           </div>
           <div>
             <label className="block mb-1 font-medium">

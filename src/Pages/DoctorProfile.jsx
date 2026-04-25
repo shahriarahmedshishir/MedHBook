@@ -1,4 +1,5 @@
-import { useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Mail, Phone, Award, MapPin, FileText } from "lucide-react";
 
 const getFullImageURL = (imgPath) => {
@@ -10,14 +11,47 @@ const getFullImageURL = (imgPath) => {
 };
 
 const DoctorProfile = () => {
+  const { id } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
-  const { doctor } = location.state || {};
+  const initialDoctor = location.state?.doctor || null;
+  const [doctor, setDoctor] = useState(initialDoctor);
+  const [loadingDoctor, setLoadingDoctor] = useState(!initialDoctor && !!id);
+  const serverURL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
-  console.log("=== DOCTOR PROFILE LOADED ===");
-  console.log("Doctor object:", doctor);
-  console.log("Doctor email:", doctor?.email);
-  console.log("Doctor name:", doctor?.name);
+  useEffect(() => {
+    if (!id) return;
+
+    const fetchDoctorDetails = async () => {
+      try {
+        setLoadingDoctor(true);
+        const response = await fetch(`${serverURL}/doctors/${id}`);
+
+        if (!response.ok) {
+          if (!initialDoctor) setDoctor(null);
+          return;
+        }
+
+        const data = await response.json();
+        setDoctor(data || initialDoctor || null);
+      } catch (error) {
+        console.error("Failed to fetch doctor profile:", error);
+        if (!initialDoctor) setDoctor(null);
+      } finally {
+        setLoadingDoctor(false);
+      }
+    };
+
+    fetchDoctorDetails();
+  }, [id, initialDoctor, serverURL]);
+
+  if (loadingDoctor) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <p className="text-gray-600 text-lg">Loading doctor profile...</p>
+      </div>
+    );
+  }
 
   if (!doctor) {
     return (
@@ -203,6 +237,54 @@ const DoctorProfile = () => {
                 </div>
               )}
             </div>
+
+            {/* Chambers */}
+            {Array.isArray(doctor.chambers) && doctor.chambers.length > 0 && (
+              <div className="border-t border-gray-200 pt-6 mt-6">
+                <h2 className="text-xl font-semibold text-gray-800 mb-4">
+                  Chambers
+                </h2>
+                <div className="space-y-4">
+                  {doctor.chambers.map((chamber, idx) => (
+                    <div
+                      key={chamber.id || chamber.name || idx}
+                      className="border border-gray-200 rounded-lg p-4 bg-gray-50"
+                    >
+                      {chamber.name && (
+                        <p className="text-gray-900 font-semibold mb-2">
+                          {chamber.name}
+                        </p>
+                      )}
+
+                      {chamber.address && (
+                        <p className="text-sm text-gray-700 mb-1">
+                          Address: {chamber.address}
+                        </p>
+                      )}
+
+                      {chamber.phone && (
+                        <p className="text-sm text-gray-700 mb-1">
+                          Phone: {chamber.phone}
+                        </p>
+                      )}
+
+                      {chamber.startTime && chamber.endTime && (
+                        <p className="text-sm text-gray-700 mb-1">
+                          Time: {chamber.startTime} - {chamber.endTime}
+                        </p>
+                      )}
+
+                      {Array.isArray(chamber.workingDays) &&
+                        chamber.workingDays.length > 0 && (
+                          <p className="text-sm text-gray-700">
+                            Days: {chamber.workingDays.join(", ")}
+                          </p>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Contact Button */}
             <button
