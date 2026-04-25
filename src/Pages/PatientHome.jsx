@@ -48,15 +48,25 @@ const PatientHome = () => {
         setLoadingCounts(true);
 
         // Fetch all counts in parallel
+        const encodedEmail = encodeURIComponent(user.email);
         const [xraysRes, digitalPresRes, presRes, reportsRes] =
           await Promise.all([
-            authGet(`/xrays/${user.email}`),
-            authGet(
-              `/digital-prescriptions?email=${encodeURIComponent(user.email)}`,
-            ),
-            authGet(`/prescriptions/${user.email}`),
-            authGet(`/reports/${user.email}`),
+            authGet(`/xrays?email=${encodedEmail}`),
+            authGet(`/digital-prescriptions?email=${encodedEmail}`),
+            authGet(`/prescriptions?email=${encodedEmail}`),
+            authGet(`/reports?email=${encodedEmail}`),
           ]);
+
+        if (
+          !xraysRes.ok ||
+          !digitalPresRes.ok ||
+          !presRes.ok ||
+          !reportsRes.ok
+        ) {
+          throw new Error(
+            "Failed to fetch one or more dashboard count endpoints",
+          );
+        }
 
         const xraysData = await xraysRes.json();
         const digitalPresData = await digitalPresRes.json();
